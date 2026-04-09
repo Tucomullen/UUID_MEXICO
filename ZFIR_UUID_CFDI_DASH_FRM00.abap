@@ -243,15 +243,8 @@ FORM frm_free_active_tab.
     FREE go_alv_detail.
   ENDIF.
 
-  IF go_chart_t2 IS BOUND.
-    go_chart_t2->free( ).
-    FREE go_chart_t2.
-  ENDIF.
-
-  IF go_chart_t3 IS BOUND.
-    go_chart_t3->free( ).
-    FREE go_chart_t3.
-  ENDIF.
+  " --- Charts (Limpieza de referencia ABAP únicamente) ---
+  FREE: go_chart_t2, go_chart_t3.
 
   " 2. Splitters (después de sus hijos)
   IF go_split_t1_b IS BOUND.
