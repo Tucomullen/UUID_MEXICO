@@ -1,0 +1,892 @@
+# Acciona DEV — SAP Naming Standards v2
+
+> **Versión:** V2  
+> **Última actualización:** 08/02/2024  
+> **Autor:** María Cristina Lopez (Acciona TIC)  
+> **Uso:** Referencia normativa para desarrollo ABAP en proyectos Acciona (On-shore / Off-shore).  
+> **Propósito de este archivo:** Guía de referencia rápida para agentes de IA y desarrolladores ABAP. Todos los objetos SAP custom deben seguir estas convenciones estrictamente.
+
+---
+
+## Índice
+
+1. [Visión General y Process IDs](#1-visión-general-y-process-ids)
+2. [Paquetes (Packages)](#2-paquetes-packages)
+3. [ABAP Dictionary (DDIC)](#3-abap-dictionary-ddic)
+4. [Programas ABAP](#4-programas-abap)
+5. [ABAP Core Data Services (CDS)](#5-abap-core-data-services-cds)
+6. [Objetos de Función](#6-objetos-de-función)
+7. [BAPI / BOR](#7-bapi--bor)
+8. [Clases ABAP](#8-clases-abap)
+9. [Enhancements (Mejoras)](#9-enhancements-mejoras)
+10. [Objetos de Formulario](#10-objetos-de-formulario)
+11. [Variables de Programa](#11-variables-de-programa)
+12. [Otros Objetos](#12-otros-objetos)
+13. [Configuración IDoc](#13-configuración-idoc)
+14. [Web Dynpro ABAP (WDA)](#14-web-dynpro-abap-wda)
+15. [Business Workflow](#15-business-workflow)
+16. [LSMW](#16-lsmw)
+17. [Manejo de Excepciones](#17-manejo-de-excepciones)
+18. [Apéndices](#18-apéndices)
+
+---
+
+## 1. Visión General y Process IDs
+
+Todas las convenciones de nombre deben:
+- Diferenciar entre código SAP estándar y código custom.
+- Permitir un enfoque consistente en todo el desarrollo custom.
+- Los objetos SAP estándar NO deben modificarse ni borrarse. Si se requiere un cambio, copiar el objeto con el nombre custom correspondiente.
+
+### Process IDs y Sub-Process IDs
+
+| Process ID Description | Process ID | Sub-process ID | Sub-Process Description |
+|---|---|---|---|
+| Finance | FI | GL | General Ledger |
+| Finance | FI | AP | Accounts Payable |
+| Finance | FI | AA | Fixed Asset Accounting |
+| Finance | FI | AR | Accounts Receivable |
+| Controlling | CO | CCA | Cost Center Accounting |
+| Controlling | CO | IO | Internal Orders |
+| Project System | PS | | |
+| Business Warehouse | BW | | |
+| Basis Components | BC | CB | Common across BASIS |
+| Basis Components | BC | IC | Interface Control |
+| Materials Management | MM | | |
+| Treasury module | FSCM | | Financial Supply Change Management |
+| Sales Management | SD | | |
+| Investment Management | IM | | |
+| Warehouse Management | WM | | |
+| Process Integration | PI | | |
+| Cross Applications | XA | | |
+| Test/Throw-away | TS | | |
+| BPC Components | BPC | | Business Planning and Consolidation |
+
+---
+
+## 2. Paquetes (Packages)
+
+- Longitud máxima: 30 caracteres.
+- Deben comenzar con `Z`.
+- Objetos temporales: clase `$TMP` (pueden borrarse, no se migran).
+
+**Formato:**
+
+```
+Z + DEV + <Sistema/Cliente> + <ProcessID>
+```
+
+| Componente | Valor |
+|---|---|
+| User development | Z |
+| Environment | DEV |
+| System/Client | ED2/300 |
+| Process ID | XX (ver Apéndice B) |
+
+**Ejemplos:**
+```
+ZDEV_ED2300_FI     → Finance
+ZDEV_ED2300_XA     → Cross Applications
+ZDEV_ED2300_TS     → Data Migration Test / Throw away
+```
+
+> **Nota:** Para objetos en `$TMP`, usar iniciales del desarrollador en el nombre. Ejemplo: `SAPMZDJF` para módulo pool de John Freeman en vez de `SAPMZD01`.
+
+---
+
+## 3. ABAP Dictionary (DDIC)
+
+Longitud máxima general: 30 caracteres (algunos objetos tienen límites menores).
+
+### 3.1 Tabla Transparente (Transparent Table)
+
+Longitud máxima: **16 caracteres**.
+
+| Prefijo | Descripción |
+|---|---|
+| `ZTT_` | Tabla transparente custom |
+
+**Formato:** `ZTT_<ProcessID>_<ObjectID>`
+
+**Ejemplo:** `ZTT_FI_TAB01`
+
+---
+
+### 3.2 Tabla Pool (Pool Table)
+
+Longitud máxima: **16 caracteres**.
+
+**Formato:** `ZPT_<ProcessID>_<ObjectID>`
+
+**Ejemplo:** `ZPT_FI_TXT01`
+
+---
+
+### 3.3 Estructuras (Structures)
+
+Longitud máxima: **30 caracteres**.
+
+**Formato:** `ZST_<ProcessID>_<ObjectID>`
+
+**Ejemplo:** `ZST_FI_STRUCT01`
+
+---
+
+### 3.4 Tabla de Verificación (Check Table)
+
+Longitud máxima: **16 caracteres**.
+
+**Formato:** `ZCT_<ProcessID>_<ObjectID>`
+
+**Ejemplo:** `ZCT_FI_COBL`
+
+---
+
+### 3.5 Tabla de Idioma/Texto (Language/Text Table)
+
+Longitud máxima: **16 caracteres**.
+
+**Formato:** `ZLT_<ProcessID>_<ObjectID>`
+
+**Ejemplo:** `ZLT_FI_COBL`
+
+---
+
+### 3.6 Grupo de Tipos (Type Group)
+
+Longitud máxima: **5 caracteres**.
+
+**Formato:** `ZTG<ObjectID>`
+
+**Ejemplo:** `ZTGIO` (Type Group para Internal Orders)
+
+---
+
+### 3.7 Tipo de Tabla (Table Type)
+
+Longitud máxima: **30 caracteres**.
+
+**Formato:** `ZTY_<ProcessID>_<ObjectID>`
+
+**Ejemplo:** `ZTY_FI_MAILRECP`
+
+---
+
+### 3.8 Vista (View)
+
+Longitud máxima: **16 caracteres**. Los primeros 7 caracteres deben ser únicos.
+
+**Formato:** `ZVW_<ProcessID>_<ObjectID>`
+
+**Ejemplo:** `ZVW_FI_MAIL`
+
+---
+
+### 3.9 Dominio (Domain)
+
+Longitud máxima: **30 caracteres**.
+
+**Formato:** `ZDO_<ObjectID>`
+
+**Ejemplos:**
+```
+ZDO_MONTH
+ZDO_BUKRS   (copia del dominio estándar BUKRS)
+```
+
+---
+
+### 3.10 Elemento de Datos (Data Element)
+
+Longitud máxima: **30 caracteres**. Cada elemento nuevo debe vincularse a un dominio nuevo (no reutilizar dominios SAP estándar).
+
+**Formato:** `ZDE_<ObjectID>`
+
+**Ejemplo:** `ZDE_MONTH`
+
+---
+
+### 3.11 Objeto de Bloqueo (Lock Object)
+
+Longitud máxima: **16 caracteres**. Debe comenzar con `EZ_`.
+
+**Formato:** `EZ_<ObjectID>`
+
+**Ejemplo:** `EZ_EBAN_01`
+
+---
+
+### 3.12 Ayuda de Búsqueda (Search Help)
+
+Longitud máxima: **30 caracteres**.
+
+**Formato:** `ZSH_<ObjectID>`
+
+**Ejemplo:** `ZSH_SEARCH`
+
+---
+
+## 4. Programas ABAP
+
+### 4.1 Programa Ejecutable
+
+#### Programas de Prueba / Temporales
+- Solo para entorno de desarrollo, no se transportan.
+- Deben comenzar con `Y`.
+- Deben crearse como Local Objects (`$TMP`).
+
+**Formato:** `Y_<NombreLibre>`
+
+**Ejemplo:** `Y_TKCBDOC_DISP`
+
+#### Programas Productivos
+- Se transportan a Test y Producción.
+- Deben comenzar con `Z`.
+
+**Formato:** `Z<ProcessID><RICEFW>_<NombreDescriptivo>`
+
+| Posición | Valor | Descripción |
+|---|---|---|
+| 1 | Z | Namespace cliente SAP |
+| 2-3 | XX | Process ID (ver Apéndice B) |
+| 4 | C | Tipo RICEFW (1 carácter, ver Apéndice A) |
+| 5 | _ | Separador (guión bajo) |
+| 6-40 | Texto libre | Nombre descriptivo |
+
+**Ejemplo:** `ZFIR_YEARLY_OPENITEMS` (Yearly Open Items Financial Report)
+
+---
+
+### 4.2 Includes
+
+| Tipo de Include | Convención de Nombre |
+|---|---|
+| Data Definition (Global Data) | `<NombrePrograma>_TOP` |
+| Selection Screen | `<NombrePrograma>_SELyy` |
+| Class Includes | `<NombrePrograma>_LCLyy` |
+| Performs (Subroutinas) | `<NombrePrograma>_FRMyy` |
+
+> `yy` = número corrido 00-99.
+
+---
+
+### 4.3 Variante de Reporte (Report Variant)
+
+Longitud máxima: **14 caracteres**.
+
+**Formato:** `ZRV_<ObjectID>`
+
+**Ejemplo:** `ZRV_SUP_1`
+
+---
+
+### 4.4 Module Pool
+
+Longitud máxima: **30 caracteres**. Debe comenzar con `SAPxZ` donde `x`:
+- `U` = update modules
+- `M` = screen modules
+- `D` = dialog modules
+- `F` = subroutine modules
+
+**Formato:** `SAP<x>Z<ProcessID><NNN>`
+
+**Ejemplo:** `SAPMZFI001`
+
+#### Componentes del Module Pool
+
+| Tipo de Componente | Convención |
+|---|---|
+| Data Definition (Global Data) | `Z<NombrePrograma>_TOP` |
+| PBO Module | `Z<NombrePrograma>_PBOyy` |
+| PAI Module | `Z<NombrePrograma>_PAIyy` |
+| Performs (subroutinas) | `Z<NombrePrograma>_FRMyy` |
+| POH Module | `Z<NombrePrograma>_POHyy` |
+| POV Module | `Z<NombrePrograma>_POVyy` |
+| OK-CODE | Código de función significativo y lo más corto posible |
+| Menu painter | `M<screen_no>_<XXXX>` |
+| Forms para OK-CODE | `Form_<OK_CODE>` |
+| MODULE Naming | `MOD_<NombreSignificativo>_<Screen_Number>` |
+
+> `yy` = número corrido 00-99.
+
+#### Controles y Elementos de Pantalla del Module Pool
+
+| Nombre | Tipo | Convención |
+|---|---|---|
+| Text Field | Elemento | `EL_TXT_<FieldName>` |
+| Input/Output Field | Elemento | `EL_FLD_<FieldName>` |
+| Check Box | Elemento | `EL_BOX_<FieldName>` |
+| Radio Button | Elemento | `EL_RDB_<FieldName>` |
+| Push Button | Elemento | `EL_PBN_<OK-CODE>` |
+| Tab Strip | Control | `CN_TBS_<ScreenNumber>_nn` (nn: 00-99) |
+| Box | Control | `CN_BOX_<ScreenNumber>_nn` |
+| Sub screen Area | Control | `CN_SSC_<ScreenNumber>_nnnn` (nnnn: 9000-9990, incremento 10) |
+| Table | Control | `CN_TBL_<InternalTableName>` |
+| Custom Container | Control | `CN_<NombreSignificativo>` |
+| Status Icon | Elemento | `EL_STA_<FieldName>` |
+
+---
+
+### 4.5 Dynpro (Screen)
+
+Rango de números reservado para dynpros custom: **9000 - 9999** (incremento de 10).
+
+La pantalla inicial de una transacción debe ser **9000**.
+
+---
+
+### 4.6 GUI Status
+
+Recomendación: máximo **4 caracteres** (el sistema permite hasta 20).
+
+**Ejemplo:** `STND`
+
+---
+
+### 4.7 Código de Transacción (Transaction Code)
+
+Longitud máxima: **20 caracteres**. Debe comenzar con `Z`.
+
+**Formato:** `Z<NNN>` (NNN: 001 a 999)
+
+**Ejemplo:** `Z001`
+
+---
+
+## 5. ABAP Core Data Services (CDS)
+
+### 5.1 CDS Data Definitions
+
+Longitud: **35 caracteres**. Deben comenzar con `ZCDS_DDL_`.
+
+**Formato:** `ZCDS_DDL_<ProcessID>_<ObjectID>`
+
+**Ejemplo:** `ZCDS_DDL_BW_FINANCEDATES`
+
+### 5.2 Resumen de otros objetos CDS
+
+Los siguientes tipos de entidades CDS siguen las reglas generales del framework ABAP CDS de SAP. No tienen convención de nombre custom adicional más allá del prefijo `Z`:
+
+- CDS Annotations
+- CDS Type Definitions (Simple Types, Enumerated Types)
+- CDS Function Definitions / Scalar Functions
+- CDS View Entities
+- CDS Projection Views
+- CDS Table Functions
+- CDS Hierarchies
+- CDS Custom Entities
+- CDS Abstract Entities
+- CDS Tuning Objects
+- CDS Access Control
+- CDS System Entities
+
+---
+
+## 6. Objetos de Función
+
+### 6.1 Grupo de Funciones (Function Group)
+
+Longitud: **26 caracteres**. Debe comenzar con `ZFG_`.
+
+**Formato:** `ZFG_<ProcessID>_<ObjectID>`
+
+**Ejemplo:** `ZFG_FI_DATES`
+
+---
+
+### 6.2 Módulo de Función (Function Module)
+
+Longitud máxima: **30 caracteres**. Debe comenzar con `ZFM_`.
+
+**Formato:** `ZFM_<ProcessID>_<ObjectID>`
+
+**Ejemplo:** `ZFM_FI_CHECK_DATE`
+
+---
+
+## 7. BAPI / BOR
+
+| Tipo de Objeto SAP | Longitud | Convención |
+|---|---|---|
+| Parámetros en function module | 20 máx. | Máx. 20 caracteres alfanuméricos |
+| Naming methods in BOR | 30 | `Z<NombreBAPI>` — componentes identificados con CamelCase. Ej: `ExistenceCheck`, `GetDetail` |
+| Modified SAP delivered methods | 30 | `Z<NombreOriginalSAP>` + sufijo numérico si hay cambios incompatibles |
+| Non-SAP developed function module | 30 | `ZBAPI_<BusinessObjectName>_<MethodName>` |
+| Modified SAP delivered function module | 30 | `ZBAPI_<BusinessObjectName>_<MethodName>` |
+
+---
+
+## 8. Clases ABAP
+
+Longitud máxima: **30 caracteres**.
+
+**Formato:** `ZCL_<Subtype>_<ProcessID>_<ObjectID>`
+
+| Subtype | Descripción |
+|---|---|
+| IM | Class implementation |
+| SI | Service Interface |
+
+**Ejemplo:** `ZCL_IM_FI_VENDOR_IBAN_ADD`
+
+---
+
+## 9. Enhancements (Mejoras)
+
+Longitud máxima: **30 caracteres**.
+
+**Formato:** `ZEH<Subtype>_<ProcessID>_<ObjectID>`
+
+| Subtype | Descripción |
+|---|---|
+| S | Simple |
+| C | Composite |
+| I | Implementation |
+
+**Ejemplo:** `ZEHI_MM_MRM_INVOICE_REVERSE`
+
+---
+
+## 10. Objetos de Formulario
+
+### 10.1 SAPscript
+
+| Tipo | Longitud máx. | Formato | Ejemplo |
+|---|---|---|---|
+| Layout Set (Form) | 16 | `Z<ProcessID>_<ObjectID>_LS` | `ZFI_REMITADV_LS` |
+| Driver Program | 30 | `Z<ProcessID>_<ObjectID>_SD` | `ZFI_REMITADV_SD` |
+| Standard Text | 70 | `Z<ProcessID>_<ObjectID>_ST` | `ZFI_REMITADV_ST` |
+
+---
+
+### 10.2 Smart Forms
+
+| Tipo | Longitud máx. | Formato | Ejemplo |
+|---|---|---|---|
+| Form Name / Layout Set | 30 | `Z<ProcessID>_<ObjectID>_SF` | `ZFI_REMITTANCE_ADV_SF` |
+| Form Interface / Driver Program | 30 | `Z<ProcessID>_<ObjectID>_SI` | `ZFI_REMITTANCE_ADV_SI` |
+| Smart Styles | — | `Z<ProcessID>_<ObjectID>_SL` | `ZFI_REMITTANCE_ADV_SL` |
+| Text Module | — | `Z<ProcessID>_<ObjectID>_ST` | `ZFI_REMITTANCE_ADV_ST` |
+
+#### Nodos de Smart Forms
+
+| Tipo de Nodo | Caracteres | Convención | Ejemplo |
+|---|---|---|---|
+| Page | 30 | `PAGE_yy` (yy: 01-99) | `PAGE_01` |
+| Main Window | 30 | `MAIN` | `MAIN` |
+| Secondary Window | 30 | Nombre significativo | `HEADER`, `FOOTER` |
+| Graphic | 30 | Nombre significativo | `LOGO` |
+| Address | 30 | `ADRS_<nombre>` | `ADRS_TYP` |
+| Text | 30 | `TXT_<nombre>` | `TXT_HEADER` |
+| Text Element | 132 | `&<estructura DDIC-campo>&` | `&PWB_DATA-WA_HEADER-RBETTR&` |
+| Table | 30 | `TABLE_<nombre>` | `TABLE_HEADER` |
+| Line | 30 | `ROW_YY` (yy: 01-99) | `ROW_02` |
+| Cell | 30 | `CELL_YY` (yy: 01-99) | `CELL_01` |
+| Template | 30 | `TMPL_<nombre>` | `TMPL_SEND` |
+| Folder | 30 | `FLDR_<nombre>` | `FLDR_HEADER` |
+| Flow Logic – Alternate | 30 | `COND_<nombre>` | `COND_TABLE01` |
+| Loop | 30 | `LOOP_<nombre>` | `LOOP_POSITION01` |
+| Program Lines | 30 | `CODE_<nombre>` | `CODE_ADRS_TYP` |
+| Command | 30 | `CMND_<nombre>` | `CMND_ADRS` |
+
+---
+
+### 10.3 Adobe / PDF-based Forms
+
+| Tipo | Longitud máx. | Formato | Ejemplo |
+|---|---|---|---|
+| Interface | 30 | `Z<ProcessID>_<ObjectID>_AI` | `ZFI_MONTHLY_INVOICE_AI` |
+| Form (PDF) | 30 | `Z<ProcessID>_<ObjectID>_AF` | `ZFI_MONTHLY_INVOICE_AF` |
+
+---
+
+## 11. Variables de Programa
+
+Las variables ABAP pueden tener hasta **30 caracteres** para campos DATA y subrutinas. Máximo **8 caracteres** para SELECT-OPTIONS y PARAMETERS.
+
+Usar guión bajo `_` como separador. Usar `LIKE` siempre que sea posible.
+
+### Prefijos de Variables
+
+| Tipo | Global | Local |
+|---|---|---|
+| Parameters | `P_` | `P_` |
+| Context Variable | `K_` | `K_` |
+| Variable | `GV_` | `LV_` |
+| Constants | `GC_` | `LC_` |
+| Select Options | `S_` | `S_` |
+| Internal tables | `GT_` | `LT_` |
+| TYPES | `GTY_` | `LTY_` |
+| Class Objects | `GO_` | `LO_` |
+| Structure / Work Areas | `GS_` | `LS_` |
+| Type Table Declaration | `GTT_` | `LTT_` |
+| Control | `CN_` | `CN_` |
+| OLE Objects | `OLE_` | `OLE_` |
+| Classes | `ZCL_` | `LCL_` |
+
+---
+
+### Patrones de Código (Patterns)
+
+| Nombre del Patrón | Descripción |
+|---|---|
+| `REPORT CLASS DEF` | Para definiciones de Clase |
+| `REPORT CLASS IMPL` | Para implementaciones de Clase |
+| `REPORT FORMS` | Para Forms |
+| `REPORT GLOBAL VARS` | Para Declaraciones Globales |
+| `REPORT LAYOUT` | Para el Layout del Reporte |
+| `REPORT METHOD` | Para cabecera de Método |
+| `REPORT MODULE PAI` | Para Process After Input |
+| `REPORT MODULE PBO` | Para Process Before Output |
+| `REPORT SELECTSCRN` | Para Selection Screen |
+| `REPORT TOP` | Para Top Declarations |
+
+---
+
+## 12. Otros Objetos
+
+### 12.1 Menú de Área (Area Menu)
+
+Longitud máxima: **20 caracteres**. Sigue las mismas convenciones que los Transaction Codes.
+
+**Formato:** `Z<ProcessID>_<ObjectID>`
+
+**Ejemplo:** `ZFI_TABS`
+
+---
+
+### 12.2 Mensajes (Messages)
+
+Clase de mensaje: 20 caracteres. Número: 3 dígitos (000-999).
+
+**Formato de clase:** `Z<ProcessID><ObjectID>`
+
+> Solo puede existir **una clase de mensajes** por Process ID. Solicitar rango de números al DV Team Lead.
+
+---
+
+### 12.3 Job de Background (Background Job)
+
+Longitud máxima: **32 caracteres** (se usan 25).
+
+**Formato:** `<NombrePrograma>_<P/T><FreqMode><C/N>_<NNN>`
+
+| Posición | Valor | Descripción |
+|---|---|---|
+| 1-9 | Nombre programa | Nombre del programa |
+| 10 | `_` | Separador |
+| 11 | `P` / `T` | Production / Test |
+| 12 | Frecuencia | Ver tabla abajo |
+| 13 | `C` / `N` | Critical / Non-Critical |
+| 14-21 | SAP Logon | Login del solicitante |
+| 22 | `_` | Separador |
+| 23-25 | NNN | Número secuencial |
+
+**Modos de Frecuencia:**
+
+| Código | Descripción |
+|---|---|
+| D | Daily |
+| W | Weekly |
+| M | Monthly |
+| Q | Quarterly |
+| H | Half-Yearly |
+| A | Annually |
+| R | On Request |
+
+**Ejemplo:** `ZSUPPLIER01_PMC_001`
+
+---
+
+### 12.4 Batch Input Session
+
+**Formato:** `<ProgramID_sinZ><FreqMode><CC>`
+
+- `ProgramID_sinZ` = Nombre del programa sin el prefijo `Z` (9 chars)
+- `FreqMode` = Q/M/W/D/H/A (Adhoc)
+- `CC` = Contador incremental (01, 02, ...)
+
+**Ejemplo:** `PP0213I01A01`
+
+---
+
+## 13. Configuración IDoc
+
+### 13.1 Sistema Lógico / RFC Destination
+
+**Formato:** `<SID>CLNT<CLIENT>`
+
+**Ejemplo:** `SR0CLNT100`
+
+---
+
+### 13.2 Distribution Model
+
+**Formato:** `Z<NombreIDoc>`
+
+**Ejemplo:** `ZMATMAS`
+
+---
+
+### 13.3 Puerto (Port)
+
+**Formato:** `Z<SID_destino>CLNT<ClientID>`
+
+**Ejemplo:** `ZSR0CLNT100`
+
+---
+
+### 13.4 Desarrollo IDoc
+
+| Parámetro | Formato | Ejemplo |
+|---|---|---|
+| IDoc type | `Z<NombreSignificativo><versión>` | `ZWARRANTY01` |
+| IDoc Extension | `Z<NombreSignificativo>` | `ZWARRANTY` |
+| Segment Name | `ZE1<NombreSignificativo>` | `ZE1WARRANTY` |
+| Message Type | `Z<NombreSignificativo>` | `ZWARCHG` |
+| Extension type | `<IDocType>_EXTN` | `ZWARRANTY01_EXTN` |
+| Process Code | `Z<InicialStream><3letrasSignificativas>` | `ZRWR` |
+
+---
+
+### 13.5 Function Modules IDoc
+
+| Tipo | Formato | Ejemplo |
+|---|---|---|
+| Inbound | `ZIDOC_INPUT_<message_type>` | `ZIDOC_INPUT_ZAPPLIANCE_DET` |
+| Outbound | `ZIDOC_OUTPUT_<message_type>` | `ZIDOC_OUTPUT_ZAPPLIANCE_DET` |
+
+---
+
+## 14. Web Dynpro ABAP (WDA)
+
+| Tipo WDA | Longitud | Convención |
+|---|---|---|
+| Component name (Class/Interface) | 30 | `ZWD_<ComponentName>` (CamelCase para componentes) |
+| Window | 30 | `WN_<TextoLibre>` |
+| View | 30 | `VW_<TextoLibre>` |
+| Plug-In Outbound | 30 | `TO_<ViewName>` |
+| Plug-In Inbound | 30 | `FROM_<ViewName>` |
+| Context Variables | 30 | Usar el Code Generator Wizard de WebDynpro |
+
+### Elementos UI (UI Elements)
+
+| UI Element | Código |
+|---|---|
+| BI Application Frame | `BIF_<FREE_TEXT>` |
+| Bread Crumb | `BRC_<FREE_TEXT>` |
+| Business Graphics | `BUG_<FREE_TEXT>` |
+| Button | `BTN_<FREE_TEXT>` |
+| Button Row | `BTR_<FREE_TEXT>` |
+| Caption | `CAP_<FREE_TEXT>` |
+| Checkbox | `CHB_<FREE_TEXT>` |
+| Checkbox Group | `CHG_<FREE_TEXT>` |
+| Date Navigator | `DTN_<FREE_TEXT>` |
+| Dropdown By Index | `DDI_<FREE_TEXT>` |
+| Dropdown By Key | `DDK_<FREE_TEXT>` |
+| File Download | `FDN_<FREE_TEXT>` |
+| File Upload | `FUP_<FREE_TEXT>` |
+| Formatted Text View | `FTV_<FREE_TEXT>` |
+| Group | `GRP_<FREE_TEXT>` |
+| Image | `IMG_<FREE_TEXT>` |
+| Input field | `INF_<FREE_TEXT>` |
+| Interactive Form | `IFM_<FREE_TEXT>` |
+| Label | `LAB_<FREE_TEXT>` |
+| Link to URL | `LTU_<FREE_TEXT>` |
+| Message Area | `MSA_<FREE_TEXT>` |
+| Radio Button | `RDB_<FREE_TEXT>` |
+| Radio Button Group by Index | `RGI_<FREE_TEXT>` |
+| Radio Button Group by Key | `RGK_<FREE_TEXT>` |
+| Scroll Container | `SCC_<FREE_TEXT>` |
+| Tabstrip | `TBS_<FREE_TEXT>` |
+| Table | `TAB_<FREE_TEXT>` |
+| Text Edit | `TXE_<FREE_TEXT>` |
+| Text View | `TXV_<FREE_TEXT>` |
+| Toggle Button | `TOB_<FREE_TEXT>` |
+| Transparent Container | `TRC_<FREE_TEXT>` |
+| Tree | `TRE_<FREE_TEXT>` |
+| View Container UI Element | `VCE_<FREE_TEXT>` |
+
+---
+
+## 15. Business Workflow
+
+### 15.1 Business Object
+
+- **Object Type:** 10 caracteres. Si deriva de estándar SAP: `Z<TipoOriginal>`. Ej: estándar `BUS0024` → custom `ZBUS0024`.
+- **Object Name:** 20 caracteres. Si deriva de estándar: `Z<NombreOriginal>`.
+
+### 15.2 Workflow Template
+
+- **Template ID:** Generado según prefijo en Workflow Customizing (ej. prefijo 900 → `WS90000001`).
+- **Abreviación:** 12 caracteres. Copia de estándar: `Z<AbrOriginal>`. Ej: `RequestAppr` → `ZRequestAppr`.
+
+### 15.3 Task Template
+
+- **Task ID:** Generado según prefijo en Workflow Customizing.
+- **Abreviación:** 12 caracteres. Si es copia: `Z<AbrOriginal>`.
+
+### 15.4 Rule (Regla)
+
+- **Rule No:** 8 dígitos numéricos.
+- **Abreviación:** 12 caracteres. Si es copia: `Z<AbrSignificativa>`.
+
+---
+
+## 16. LSMW
+
+### 16.1 Objetos LSMW
+
+Longitud máxima de cada objeto: **15 caracteres**.
+
+| Objeto LSMW | Convención | Ejemplo |
+|---|---|---|
+| Project | `<ACRONIMO_CLIENTE>_DM_PROJECT` | `DATA_MIGRATION` |
+| Subproject | `<ProcessID>_<SubProcessID>` | `SCM_MM` |
+| Object | `<Legacy>_<Action>` | `ORA_CREATE` |
+
+### 16.2 Gestión de Ficheros LSMW
+
+| Directorio | Ruta |
+|---|---|
+| Pre-Processed | `\<cliente>\conv\input\pre` |
+| Formatted | `\<cliente>\conv\output\format` |
+| Mapped | `\<cliente>\conv\output\map` |
+| Archived | `\<cliente>\conv\output\arc` |
+| Errors | `\<cliente>\conv\output\error` |
+| Processed | `\<cliente>\conv\output\processed` |
+
+### 16.3 Nombres de Fichero
+
+| Posición | Valores | Descripción |
+|---|---|---|
+| 1-25 | Nombre significativo | Conversion ID |
+| 26-29 | `.arc`, `.prs`, `.err`, `.map`, `.inp`, `.pre` | Extensión (Archived, Processed, Error, etc.) |
+
+---
+
+## 17. Manejo de Excepciones
+
+### 17.1 Errores de Programa
+- Notificar al System Admin con: código de retorno, clave usada para acceso a BD, ubicación en el programa.
+- La acción de terminación depende del contexto de ejecución.
+
+### 17.2 Captura de Excepciones del Sistema
+
+```abap
+" Usar CATCH/ENDCATCH en lugar de dejar dumpear el programa
+CATCH EXCEPTION DBIF_DSQL2_SQL_ERROR.
+  " Presentar mensaje detallado al usuario con:
+  " - Severidad del problema
+  " - Causa del problema
+  " - Remedios necesarios
+  " - Cómo reprocesar la tarea
+```
+
+Reglas:
+- Usar una **Error Class** en el CATCH siempre que sea posible.
+- Solo usar Error ID específico si el error está muy precisamente definido.
+- Cada Error ID/Class en línea separada del CATCH.
+- Chequear el código de retorno inmediatamente después del ENDCATCH.
+
+---
+
+## 18. Apéndices
+
+### Apéndice A — Objetos RICEFW
+
+| Object ID | Significado |
+|---|---|
+| R | Report |
+| I | Interface |
+| C | Conversion |
+| E | Extension |
+| F | Forms |
+| W | Workflow |
+
+---
+
+### Apéndice B — Process / Sub-Process IDs
+
+_(Ver tabla completa en Sección 1)_
+
+---
+
+### Apéndice C — Glosario
+
+| Acrónimo | Descripción |
+|---|---|
+| SAP | System Application and Products |
+| ABAP | Advanced Business Application Programming |
+| PAI | Process After Input |
+| PBO | Process Before Output |
+| RFC | Remote Function Call |
+| BAPI | Business Application Programming Interface |
+| BADI | Business Ad-Ins |
+| DBMS | Database Management System |
+| OSS | Online Support Services |
+| GUI | Graphical User Interface |
+| DDIC | Data Dictionary |
+| ECC | ERP Central Component |
+| WDA | Web Dynpro for ABAP |
+| WDJ | Web Dynpro for Java |
+| BC | Basis Components |
+| BW | Business Warehouse |
+| CO | Controlling module |
+| CO-CCA | Cost Center Accounting |
+| CO-PA | Profitability Analysis |
+| CO-IO | Internal Orders |
+| FI | Financial Accounting module |
+| FI-GL | General Ledger |
+| FI-AP | Accounts Payable |
+| FI-AA | Fixed Asset Accounting |
+| FI-AR | Accounts Receivable |
+| HR | Human Resources module |
+| TR | Treasury module |
+| DM | Data Migration |
+| ADS | Adobe Document Services |
+| CDS | Core Data Services |
+| ABAP RAP | ABAP RESTful Application Programming Model |
+| CSN | CDS Schema Notation |
+| SAC | SAP Analytics Cloud |
+
+---
+
+## Resumen Rápido de Convenciones — Tabla de Referencia
+
+| Objeto SAP | Long. máx. | Formato / Prefijo | Ejemplo |
+|---|---|---|---|
+| Package | 30 | `ZDEV_<Sistema>_<ProcessID>` | `ZDEV_ED2300_FI` |
+| Transparent Table | 16 | `ZTT_<PID>_<OID>` | `ZTT_FI_TAB01` |
+| Pool Table | 16 | `ZPT_<PID>_<OID>` | `ZPT_FI_TXT01` |
+| Structure | 30 | `ZST_<PID>_<OID>` | `ZST_FI_STRUCT01` |
+| Check Table | 16 | `ZCT_<PID>_<OID>` | `ZCT_FI_COBL` |
+| Language Table | 16 | `ZLT_<PID>_<OID>` | `ZLT_FI_COBL` |
+| Type Group | 5 | `ZTG<OID>` | `ZTGIO` |
+| Table Type | 30 | `ZTY_<PID>_<OID>` | `ZTY_FI_MAILRECP` |
+| View | 16 | `ZVW_<PID>_<OID>` | `ZVW_FI_MAIL` |
+| Domain | 30 | `ZDO_<OID>` | `ZDO_MONTH` |
+| Data Element | 30 | `ZDE_<OID>` | `ZDE_MONTH` |
+| Lock Object | 16 | `EZ_<OID>` | `EZ_EBAN_01` |
+| Search Help | 30 | `ZSH_<OID>` | `ZSH_SEARCH` |
+| Executable Program | 30 | `Z<PID><RICEFW>_<OID>` | `ZFIR_YEARLY_OPENITEMS` |
+| Include | 30 | `<Prog>_TOP/_SELyy/_FRMyy/_LCLyy` | `ZFIR_UUID_CFDI_UPDATE_TOP` |
+| Report Variant | 14 | `ZRV_<OID>` | `ZRV_SUP_1` |
+| Module Pool | 30 | `SAP<x>Z<PID><NNN>` | `SAPMZFI001` |
+| Dynpro | 4 | `9000-9990` (incr. 10) | `9000` |
+| Transaction Code | 20 | `Z<NNN>` | `Z001` |
+| CDS Data Definition | 35 | `ZCDS_DDL_<PID>_<OID>` | `ZCDS_DDL_BW_FINANCEDATES` |
+| Function Group | 26 | `ZFG_<PID>_<OID>` | `ZFG_FI_DATES` |
+| Function Module | 30 | `ZFM_<PID>_<OID>` | `ZFM_FI_CHECK_DATE` |
+| Class | 30 | `ZCL_<Sub>_<PID>_<OID>` | `ZCL_IM_FI_VENDOR_IBAN_ADD` |
+| Enhancement | 30 | `ZEH<Sub>_<PID>_<OID>` | `ZEHI_MM_MRM_INVOICE_REVERSE` |
+| SAPscript Form | 16 | `Z<PID>_<OID>_LS` | `ZFI_REMITADV_LS` |
+| Smart Form | 30 | `Z<PID>_<OID>_SF` | `ZFI_REMITTANCE_ADV_SF` |
+| Adobe Form | 30 | `Z<PID>_<OID>_AF` | `ZFI_MONTHLY_INVOICE_AF` |
+| Adobe Interface | 30 | `Z<PID>_<OID>_AI` | `ZFI_MONTHLY_INVOICE_AI` |
+| Area Menu | 20 | `Z<PID>_<OID>` | `ZFI_TABS` |
+| Background Job | 32 | `<Prog>_<P/T><Freq><C/N>_<NNN>` | `ZSUPPLIER01_PMC_001` |
+| Inbound FM IDoc | 30 | `ZIDOC_INPUT_<MsgType>` | `ZIDOC_INPUT_ZAPPLIANCE_DET` |
+| Outbound FM IDoc | 30 | `ZIDOC_OUTPUT_<MsgType>` | `ZIDOC_OUTPUT_ZAPPLIANCE_DET` |
+
+**Leyenda:** PID = Process ID, OID = Object ID, Sub = Subtipo, RICEFW = ver Apéndice A
