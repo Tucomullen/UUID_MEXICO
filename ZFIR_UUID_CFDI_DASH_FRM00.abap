@@ -25,7 +25,19 @@ MODULE status_0100 OUTPUT.
 ENDMODULE.
 
 MODULE user_command_0100 INPUT.
-  CASE sy-ucomm.
+  DATA: lv_rc    TYPE i,
+        lv_ucomm TYPE syucomm.
+
+  " Capturar y limpiar ucomm para evitar bucles
+  lv_ucomm = sy-ucomm.
+  CLEAR sy-ucomm.
+
+  " CRUCIAL: Despachar eventos de aplicación del Control Framework (Toolbar)
+  CALL METHOD cl_gui_cfw=>dispatch
+    IMPORTING
+      return_code = lv_rc.
+
+  CASE lv_ucomm.
     WHEN 'BACK' OR 'EXIT' OR 'CANC'.
       PERFORM frm_free_gui.
       LEAVE TO SCREEN 0.
@@ -143,12 +155,8 @@ FORM frm_render_active_tab.
     RETURN.
   ENDIF.
 
-* Ocultar todos los objetos de la pestaña anterior destruyendo componentes viejos 
-* para usar el contenedor go_cont_main como pivot
-  FREE: go_split_t1, go_split_t1_b, go_split_t2, go_split_t3,
-        go_html_kpi, go_alv_kpi, go_alv_kpi_2,
-        go_alv_bukrs, go_alv_month, 
-        go_alv_errors, go_alv_detail.
+* Ocultar todos los objetos de la pestaña anterior destruyendo componentes de forma segura
+  PERFORM frm_free_active_tab.
 
   CASE gv_tab_key.
     WHEN 'TAB1'.
@@ -191,10 +199,88 @@ FORM frm_refresh_all_tabs.
          gv_tab4_init, gv_tab5_init.
 
 * Liberar objetos GUI existentes
-  FREE: go_alv_bukrs, go_alv_month, go_alv_errors, go_alv_detail.
-  FREE: go_chart_t2, go_chart_t3. " go_chart_t1 eliminado
-  FREE: go_html_kpi, go_alv_kpi, go_alv_kpi_2.
-  FREE: go_split_t1, go_split_t1_b, go_split_t2, go_split_t3.
+  PERFORM frm_free_active_tab.
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*& Form FRM_FREE_ACTIVE_TAB
+*&---------------------------------------------------------------------*
+FORM frm_free_active_tab.
+
+  " 1. Controles individuales
+  IF go_html_kpi IS BOUND.
+    go_html_kpi->free( ).
+    FREE go_html_kpi.
+  ENDIF.
+
+  IF go_alv_kpi IS BOUND.
+    go_alv_kpi->free( ).
+    FREE go_alv_kpi.
+  ENDIF.
+
+  IF go_alv_kpi_2 IS BOUND.
+    go_alv_kpi_2->free( ).
+    FREE go_alv_kpi_2.
+  ENDIF.
+
+  IF go_alv_bukrs IS BOUND.
+    go_alv_bukrs->free( ).
+    FREE go_alv_bukrs.
+  ENDIF.
+
+  IF go_alv_month IS BOUND.
+    go_alv_month->free( ).
+    FREE go_alv_month.
+  ENDIF.
+
+  IF go_alv_errors IS BOUND.
+    go_alv_errors->free( ).
+    FREE go_alv_errors.
+  ENDIF.
+
+  IF go_alv_detail IS BOUND.
+    go_alv_detail->free( ).
+    FREE go_alv_detail.
+  ENDIF.
+
+  IF go_chart_t2 IS BOUND.
+    go_chart_t2->free( ).
+    FREE go_chart_t2.
+  ENDIF.
+
+  IF go_chart_t3 IS BOUND.
+    go_chart_t3->free( ).
+    FREE go_chart_t3.
+  ENDIF.
+
+  " 2. Splitters (después de sus hijos)
+  IF go_split_t1_b IS BOUND.
+    go_split_t1_b->free( ).
+    FREE go_split_t1_b.
+  ENDIF.
+
+  IF go_split_t1 IS BOUND.
+    go_split_t1->free( ).
+    FREE go_split_t1.
+  ENDIF.
+
+  IF go_split_t2 IS BOUND.
+    go_split_t2->free( ).
+    FREE go_split_t2.
+  ENDIF.
+
+  IF go_split_t3 IS BOUND.
+    go_split_t3->free( ).
+    FREE go_split_t3.
+  ENDIF.
+
+  " 3. Limpiar referencias a contenedores
+  FREE: go_cont_t1_t, go_cont_t1_bl, go_cont_t1_br,
+        go_cont_t2_t, go_cont_t2_b,
+        go_cont_t3_t, go_cont_t3_b.
+
+  cl_gui_cfw=>flush( ).
+
 ENDFORM.
 
 *&---------------------------------------------------------------------*
@@ -209,9 +295,7 @@ ENDFORM.
 *& Form FRM_FREE_GUI
 *&---------------------------------------------------------------------*
 FORM frm_free_gui.
-  FREE: go_alv_bukrs, go_alv_month, go_alv_errors, go_alv_detail.
-  FREE: go_chart_t2, go_chart_t3, go_html_kpi, go_alv_kpi, go_alv_kpi_2.
-  FREE: go_split_t1, go_split_t1_b, go_split_t2, go_split_t3.
+  PERFORM frm_free_active_tab.
   FREE: go_event_receiver, go_toolbar, go_cont_toolbar, go_cont_main, go_main_splitter.
 
   IF go_docking IS BOUND.
