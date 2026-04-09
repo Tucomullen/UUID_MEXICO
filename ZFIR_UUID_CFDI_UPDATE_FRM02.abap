@@ -178,3 +178,26 @@ FORM frm_actualizar_factura_uuid
   APPEND gs_log TO gt_log.
 
 ENDFORM.
+
+*&---------------------------------------------------------------------*
+*& Form FRM_MOSTRAR_ALV_GLOBAL
+*&---------------------------------------------------------------------*
+*& Muestra el ALV consolidado de TODOS los ficheros procesados.
+*&---------------------------------------------------------------------*
+FORM frm_mostrar_alv_global.
+  DATA: lo_alv TYPE REF TO cl_salv_table.
+  
+  IF gt_log_global IS INITIAL.
+    MESSAGE 'No hay registros consolidados.' TYPE 'S' DISPLAY LIKE 'E'.
+    RETURN.
+  ENDIF.
+
+  TRY.
+    cl_salv_table=>factory( IMPORTING r_salv_table = lo_alv CHANGING t_table = gt_log_global ).
+    lo_alv->get_functions( )->set_all( ).
+    lo_alv->get_columns( )->set_optimize( ).
+    lo_alv->display( ).
+  CATCH cx_salv_msg.
+    MESSAGE 'Error al mostrar ALV Global' TYPE 'E'.
+  ENDTRY.
+ENDFORM.
