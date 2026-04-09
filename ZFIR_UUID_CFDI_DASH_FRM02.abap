@@ -1,8 +1,7 @@
 *&---------------------------------------------------------------------*
 *& Include ZFIR_UUID_CFDI_DASH_FRM02
 *&---------------------------------------------------------------------*
-*& Tab 1: KPI cards (CL_DD_DOCUMENT) + Chart tipo PIE
-*& Custom Control: CC_TAB1 en subscreen 0101
+*& Tab 1: Dashboard Rediseñado (HTML + ALVs)
 *&---------------------------------------------------------------------*
 
 *&---------------------------------------------------------------------*
@@ -10,81 +9,236 @@
 *&---------------------------------------------------------------------*
 FORM frm_build_tab1.
 
-* Contenedor principal
-  go_cont_t1_l = go_cont_main.
+  " 1. Splitter Principal Fila 1 (HTML 35%), Fila 2 (ALVs 65%)
+  IF go_split_t1 IS INITIAL.
+    CREATE OBJECT go_split_t1
+      EXPORTING
+        parent  = go_cont_main
+        rows    = 2
+        columns = 1.
+    
+    go_split_t1->set_row_height( id = 1 height = 35 ).
+    go_cont_t1_t = go_split_t1->get_container( row = 1 column = 1 ).
+    
+    " Contenedor para la parte inferior
+    DATA(lo_cont_b) = go_split_t1->get_container( row = 2 column = 1 ).
+    
+    " 2. Splitter Inferior (Left 50% / Right 50%)
+    CREATE OBJECT go_split_t1_b
+      EXPORTING
+        parent  = lo_cont_b
+        rows    = 1
+        columns = 2.
+    
+    go_cont_t1_bl = go_split_t1_b->get_container( row = 1 column = 1 ).
+    go_cont_t1_br = go_split_t1_b->get_container( row = 1 column = 2 ).
+  ENDIF.
 
-  PERFORM frm_render_kpi_doc.
-
-ENDFORM.
-
-*&---------------------------------------------------------------------*
-*& Form FRM_RENDER_KPI_DOC
-*&---------------------------------------------------------------------*
-FORM frm_render_kpi_doc.
-
-  DATA: lv_text TYPE sdydo_text_element,
-        lv_num  TYPE char20.
-
-  CREATE OBJECT go_kpi_doc.
-
-  go_kpi_doc->initialize_document( ).
-
-  go_kpi_doc->add_text(
-    text      = 'RESUMEN GLOBAL UUID CFDI'
-    sap_style = cl_dd_document=>heading ).
-  go_kpi_doc->new_line( ).
-  go_kpi_doc->new_line( ).
-
-  WRITE gs_kpi-tot_reg TO lv_num LEFT-JUSTIFIED.
-  CONCATENATE 'Total registros procesados: ' lv_num INTO lv_text.
-  go_kpi_doc->add_text( text = lv_text  sap_style = cl_dd_document=>large ).
-  go_kpi_doc->new_line( ).
-
-  WRITE gs_kpi-tot_ok TO lv_num LEFT-JUSTIFIED.
-  CONCATENATE '  OK (verde):       ' lv_num INTO lv_text.
-  go_kpi_doc->add_text( text = lv_text ).
-  go_kpi_doc->new_line( ).
-
-  WRITE gs_kpi-tot_warn TO lv_num LEFT-JUSTIFIED.
-  CONCATENATE '  Warning (amaril.):' lv_num INTO lv_text.
-  go_kpi_doc->add_text( text = lv_text ).
-  go_kpi_doc->new_line( ).
-
-  WRITE gs_kpi-tot_err TO lv_num LEFT-JUSTIFIED.
-  CONCATENATE '  Error (rojo):     ' lv_num INTO lv_text.
-  go_kpi_doc->add_text( text = lv_text ).
-  go_kpi_doc->new_line( ).
-  go_kpi_doc->new_line( ).
-
-  WRITE gs_kpi-pct_ok TO lv_num DECIMALS 1 LEFT-JUSTIFIED.
-  CONCATENATE '  % OK:    ' lv_num '%' INTO lv_text.
-  go_kpi_doc->add_text( text = lv_text  sap_style = cl_dd_document=>large ).
-  go_kpi_doc->new_line( ).
-
-  WRITE gs_kpi-pct_err TO lv_num DECIMALS 1 LEFT-JUSTIFIED.
-  CONCATENATE '  % Error: ' lv_num '%' INTO lv_text.
-  go_kpi_doc->add_text( text = lv_text  sap_style = cl_dd_document=>large ).
-  go_kpi_doc->new_line( ).
-  go_kpi_doc->new_line( ).
-
-  WRITE gs_kpi-num_uuid TO lv_num LEFT-JUSTIFIED.
-  CONCATENATE '  UUIDs únicos grabados:     ' lv_num INTO lv_text.
-  go_kpi_doc->add_text( text = lv_text ).
-  go_kpi_doc->new_line( ).
-
-  WRITE gs_kpi-num_exec TO lv_num LEFT-JUSTIFIED.
-  CONCATENATE '  Nº ejecuciones distintas:  ' lv_num INTO lv_text.
-  go_kpi_doc->add_text( text = lv_text ).
-  go_kpi_doc->new_line( ).
-
-  go_kpi_doc->display_document(
-    EXPORTING parent = go_cont_t1_l ).
+  PERFORM frm_render_html_kpi.
+  PERFORM frm_render_alv_resumen.
+  PERFORM frm_render_alv_actividad.
 
 ENDFORM.
 
 *&---------------------------------------------------------------------*
-*& Form FRM_RENDER_CHART_T1  (deshabilitado — CL_GUI_CHART_ENGINE
-*&  no disponible en esta versión del sistema)
+*& Form FRM_RENDER_HTML_KPI
 *&---------------------------------------------------------------------*
-FORM frm_render_chart_t1.
+FORM frm_render_html_kpi.
+
+  DATA: lt_html    TYPE TABLE OF w3html,
+        lv_url     TYPE char255,
+        lv_html    TYPE string,
+        lv_status  TYPE string,
+        lv_color   TYPE string,
+        lv_msg     TYPE string,
+        lv_bg      TYPE string.
+
+  IF go_html_kpi IS INITIAL.
+    CREATE OBJECT go_html_kpi
+      EXPORTING
+        parent = go_cont_t1_t.
+  ENDIF.
+
+  " Lógica de color general
+  IF gs_kpi-pct_err > 20.
+    lv_status = 'CRÍTICO'.
+    lv_color  = '#d32f2f'. " Rojo
+    lv_bg     = '#ffebee'.
+    lv_msg    = 'Se han detectado errores críticos en la carga de UUIDs. Revise el detalle.'.
+  ELSEIF gs_kpi-tot_warn > 0.
+    lv_status = 'ATENCIÓN'.
+    lv_color  = '#fbc02d'. " Amarillo
+    lv_bg     = '#fffde7'.
+    lv_msg    = 'Existen advertencias en el proceso. Algunos registros requieren revisión.'.
+  ELSEIF gs_kpi-tot_reg > 0.
+    lv_status = 'SALUDABLE'.
+    lv_color  = '#388e3c'. " Verde
+    lv_bg     = '#e8f5e9'.
+    lv_msg    = 'El proceso se ha completado correctamente para todos los registros.'.
+  ELSE.
+    lv_status = 'SIN DATOS'.
+    lv_color  = '#757575'. " Gris
+    lv_bg     = '#f5f5f5'.
+    lv_msg    = 'No hay datos cargados para los filtros seleccionados.'.
+  ENDIF.
+
+  " Construcción del HTML con CSS inline para máximo impacto
+  lv_html = 
+    '<html><head><style>' &&
+    'body { font-family: "Segoe UI", Arial, sans-serif; background: #fafafa; margin: 15px; }' &&
+    '.dash-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }' &&
+    '.dash-title { font-size: 24px; font-weight: bold; color: #333; }' &&
+    '.status-banner { padding: 12px 20px; border-radius: 8px; border-left: 5px solid ' && lv_color && '; background: ' && lv_bg && '; margin-bottom: 25px; }' &&
+    '.status-title { font-weight: bold; font-size: 16px; color: ' && lv_color && '; }' &&
+    '.cards-container { display: flex; gap: 15px; }' &&
+    '.card { flex: 1; background: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border: 1px solid #eee; text-align: center; }' &&
+    '.card-label { font-size: 11px; text-transform: uppercase; color: #888; letter-spacing: 1px; margin-bottom: 8px; }' &&
+    '.card-value { font-size: 28px; font-weight: bold; color: #222; }' &&
+    '.card-ok { border-bottom: 4px solid #4caf50; } .card-err { border-bottom: 4px solid #f44336; }' &&
+    '.card-warn { border-bottom: 4px solid #ffeb3b; } .card-blue { border-bottom: 4px solid #2196f3; }' &&
+    '</style></head><body>' &&
+    '<div class="dash-header"><div class="dash-title">Resumen Ejecutivo UUID</div></div>' &&
+    '<div class="status-banner"><div class="status-title">ESTADO: ' && lv_status && '</div>' &&
+    '<div style="font-size: 14px; color: #555;">' && lv_msg && '</div></div>' &&
+    '<div class="cards-container">' &&
+    '<div class="card card-blue"><div class="card-label">Total Procesados</div><div class="card-value">' && |{ gs_kpi-tot_reg }| && '</div></div>' &&
+    '<div class="card card-ok"><div class="card-label">Correctos (OK)</div><div class="card-value" style="color:#2e7d32">' && |{ gs_kpi-tot_ok }| && '</div></div>' &&
+    '<div class="card card-warn"><div class="card-label">Con Warning</div><div class="card-value" style="color:#f9a825">' && |{ gs_kpi-tot_warn }| && '</div></div>' &&
+    '<div class="card card-err"><div class="card-label">Con Error</div><div class="card-value" style="color:#c62828">' && |{ gs_kpi-tot_err }| && '</div></div>' &&
+    '<div class="card card-blue"><div class="card-label">% Éxito</div><div class="card-value">' && |{ gs_kpi-pct_ok }%| && '</div></div>' &&
+    '<div class="card card-blue"><div class="card-label">UUIDs Únicos</div><div class="card-value">' && |{ gs_kpi-num_uuid }| && '</div></div>' &&
+    '</div></body></html>'.
+
+  " Convertir STRING a tabla W3HTML
+  DATA: lv_offset TYPE i,
+        lv_len    TYPE i.
+  lv_len = strlen( lv_html ).
+  WHILE lv_offset < lv_len.
+    APPEND lv_html+lv_offset TO lt_html.
+    lv_offset = lv_offset + 255.
+  ENDWHILE.
+
+  go_html_kpi->load_data( 
+    IMPORTING assigned_url = lv_url
+    CHANGING  data_table   = lt_html ).
+
+  go_html_kpi->show_url( url = lv_url ).
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*& Form FRM_RENDER_ALV_RESUMEN
+*&---------------------------------------------------------------------*
+FORM frm_render_alv_resumen.
+
+  TYPES: BEGIN OF lty_summary,
+           icon    TYPE icon_d,
+           status  TYPE char20,
+           count   TYPE i,
+           percent TYPE p DECIMALS 1,
+           color   TYPE char4,
+         END OF lty_summary.
+
+  DATA: lt_summary TYPE TABLE OF lty_summary,
+        ls_summary TYPE lty_summary,
+        lt_fcat    TYPE lvc_t_fcat,
+        ls_fcat    TYPE lvc_s_fcat,
+        ls_layout  TYPE lvc_s_layo.
+
+  " Llenar tabla de resumen
+  ls_summary-icon    = '@08@'.
+  ls_summary-status  = 'OK'.
+  ls_summary-count   = gs_kpi-tot_ok.
+  ls_summary-percent = gs_kpi-pct_ok.
+  ls_summary-color   = 'C300'.
+  APPEND ls_summary TO lt_summary.
+
+  ls_summary-icon    = '@09@'.
+  ls_summary-status  = 'Warning'.
+  ls_summary-count   = gs_kpi-tot_warn.
+  IF gs_kpi-tot_reg > 0.
+    ls_summary-percent = ( gs_kpi-tot_warn * 100 ) / gs_kpi-tot_reg.
+  ENDIF.
+  ls_summary-color   = 'C200'.
+  APPEND ls_summary TO lt_summary.
+
+  ls_summary-icon    = '@0A@'.
+  ls_summary-status  = 'Error'.
+  ls_summary-count   = gs_kpi-tot_err.
+  ls_summary-percent = gs_kpi-pct_err.
+  ls_summary-color   = 'C110'. " Rojo intenso
+  APPEND ls_summary TO lt_summary.
+
+  IF go_alv_kpi IS INITIAL.
+    CREATE OBJECT go_alv_kpi
+      EXPORTING
+        i_parent = go_cont_t1_bl.
+
+    " Fieldcat minimalista
+    CLEAR ls_fcat.
+    ls_fcat-fieldname = 'ICON'.    ls_fcat-scrtext_s = 'Est.'. ls_fcat-icon = 'X'. APPEND ls_fcat TO lt_fcat.
+    ls_fcat-fieldname = 'STATUS'.  ls_fcat-scrtext_s = 'Estado'. ls_fcat-outputlen = 10. APPEND ls_fcat TO lt_fcat.
+    ls_fcat-fieldname = 'COUNT'.   ls_fcat-scrtext_s = 'Cantidad'. ls_fcat-do_sum = 'X'. APPEND ls_fcat TO lt_fcat.
+    ls_fcat-fieldname = 'PERCENT'. ls_fcat-scrtext_s = '%'. ls_fcat-decimals_o = 1. APPEND ls_fcat TO lt_fcat.
+
+    ls_layout-grid_title = 'Resumen por Estado'.
+    ls_layout-smalltitle = 'X'.
+    ls_layout-no_toolbar = 'X'.
+    ls_layout-info_fname = 'COLOR'.
+
+    go_alv_kpi->set_table_for_first_display(
+      EXPORTING
+        is_layout       = ls_layout
+      CHANGING
+        it_outtab       = lt_summary
+        it_fieldcatalog = lt_fcat ).
+  ELSE.
+    go_alv_kpi->refresh_table_display( ).
+  ENDIF.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*& Form FRM_RENDER_ALV_ACTIVIDAD
+*&---------------------------------------------------------------------*
+FORM frm_render_alv_actividad.
+
+  DATA: lt_fcat    TYPE lvc_t_fcat,
+        ls_fcat    TYPE lvc_s_fcat,
+        ls_layout  TYPE lvc_s_layo,
+        lt_top_buk TYPE TABLE OF gty_by_bukrs.
+
+  " Usar las top 5 sociedades con registros
+  lt_top_buk = gt_by_bukrs.
+  SORT lt_top_buk BY tot_reg DESCENDING.
+  DELETE lt_top_buk FROM 6.
+
+  IF go_alv_kpi_2 IS INITIAL.
+    CREATE OBJECT go_alv_kpi_2
+      EXPORTING
+        i_parent = go_cont_t1_br.
+
+    " Fieldcat
+    CLEAR ls_fcat.
+    ls_fcat-fieldname = 'BUKRS'.   ls_fcat-scrtext_s = 'Soc.'. APPEND ls_fcat TO lt_fcat.
+    ls_fcat-fieldname = 'BUTXT'.   ls_fcat-scrtext_s = 'Descripción'. APPEND ls_fcat TO lt_fcat.
+    ls_fcat-fieldname = 'TOT_REG'. ls_fcat-scrtext_s = 'Total'. APPEND ls_fcat TO lt_fcat.
+    ls_fcat-fieldname = 'PCT_OK'.  ls_fcat-scrtext_s = '% OK'. ls_fcat-decimals_o = 1. APPEND ls_fcat TO lt_fcat.
+
+    ls_layout-grid_title = 'Top Sociedades con Actividad'.
+    ls_layout-smalltitle = 'X'.
+    ls_layout-no_toolbar = 'X'.
+    ls_layout-cwidth_opt = 'X'.
+    ls_layout-info_fname = 'LIGHT'.
+
+    go_alv_kpi_2->set_table_for_first_display(
+      EXPORTING
+        is_layout       = ls_layout
+      CHANGING
+        it_outtab       = lt_top_buk
+        it_fieldcatalog = lt_fcat ).
+  ELSE.
+    go_alv_kpi_2->refresh_table_display( ).
+  ENDIF.
+
 ENDFORM.

@@ -13,17 +13,36 @@ CLASS lcl_event_receiver IMPLEMENTATION.
 ENDCLASS.
 
 *&---------------------------------------------------------------------*
+*& PBO / PAI Modules for Empty Screen 0100
+*&---------------------------------------------------------------------*
+MODULE status_0100 OUTPUT.
+  SET PF-STATUS 'ZSTD'.
+  SET TITLEBAR 'ZUUID_DASH'.
+
+  IF go_docking IS INITIAL.
+    PERFORM frm_build_gui_docking.
+  ENDIF.
+ENDMODULE.
+
+MODULE user_command_0100 INPUT.
+  CASE sy-ucomm.
+    WHEN 'BACK' OR 'EXIT' OR 'CANC'.
+      PERFORM frm_free_gui.
+      LEAVE TO SCREEN 0.
+  ENDCASE.
+ENDMODULE.
+
+*&---------------------------------------------------------------------*
 *& Form FRM_BUILD_GUI_DOCKING
 *&---------------------------------------------------------------------*
 FORM frm_build_gui_docking.
-* 1. Crear Docking Container sobre la pantalla activa (Lista)
-  IF go_docking IS INITIAL.
+* 1. Crear Docking Container sobre la pantalla activa (0100)
     CREATE OBJECT go_docking
       EXPORTING
         repid     = sy-repid
-        dynnr     = '0120'  " 0120 es el código de pantalla nativo de la lista
+        dynnr     = sy-dynnr
         side      = cl_gui_docking_container=>dock_at_top
-        extension = 99999.  " Tamaño máximo para forzar visibilidad
+        extension = 3000.  " Tamaño base para expandir
 
 * 2. Splitter 2 Filas: Fila 1 Toolbar, Fila 2 Contenido principal
     CREATE OBJECT go_main_splitter
@@ -56,10 +75,12 @@ FORM frm_build_gui_docking.
     APPEND ls_event TO lt_events.
     go_toolbar->set_registered_events( events = lt_events ).
 
+    cl_gui_cfw=>flush( ).
+
 * 5. Mostrar la primera tab
     PERFORM frm_render_active_tab.
 
-  ENDIF.
+    cl_gui_cfw=>flush( ).
 ENDFORM.
 
 *&---------------------------------------------------------------------*
@@ -124,8 +145,9 @@ FORM frm_render_active_tab.
 
 * Ocultar todos los objetos de la pestaña anterior destruyendo componentes viejos 
 * para usar el contenedor go_cont_main como pivot
-  FREE: go_split_t1, go_split_t2, go_split_t3,
-        go_kpi_doc, go_alv_bukrs, go_alv_month, 
+  FREE: go_split_t1, go_split_t1_b, go_split_t2, go_split_t3,
+        go_html_kpi, go_alv_kpi, go_alv_kpi_2,
+        go_alv_bukrs, go_alv_month, 
         go_alv_errors, go_alv_detail.
 
   CASE gv_tab_key.
@@ -170,9 +192,9 @@ FORM frm_refresh_all_tabs.
 
 * Liberar objetos GUI existentes
   FREE: go_alv_bukrs, go_alv_month, go_alv_errors, go_alv_detail.
-  FREE: go_chart_t1, go_chart_t2, go_chart_t3.
-  FREE: go_kpi_doc.
-  FREE: go_split_t1, go_split_t2, go_split_t3.
+  FREE: go_chart_t2, go_chart_t3. " go_chart_t1 eliminado
+  FREE: go_html_kpi, go_alv_kpi, go_alv_kpi_2.
+  FREE: go_split_t1, go_split_t1_b, go_split_t2, go_split_t3.
 ENDFORM.
 
 *&---------------------------------------------------------------------*
@@ -181,4 +203,19 @@ ENDFORM.
 FORM frm_export_excel.
 * Exportación disponible desde la barra de herramientas estándar del propio ALV:
   MESSAGE 'Use el botón "Local File" o "Export" nativo del ALV activo actualmente.' TYPE 'I'.
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*& Form FRM_FREE_GUI
+*&---------------------------------------------------------------------*
+FORM frm_free_gui.
+  FREE: go_alv_bukrs, go_alv_month, go_alv_errors, go_alv_detail.
+  FREE: go_chart_t2, go_chart_t3, go_html_kpi, go_alv_kpi, go_alv_kpi_2.
+  FREE: go_split_t1, go_split_t1_b, go_split_t2, go_split_t3.
+  FREE: go_event_receiver, go_toolbar, go_cont_toolbar, go_cont_main, go_main_splitter.
+
+  IF go_docking IS BOUND.
+    go_docking->free( ).
+  ENDIF.
+  FREE go_docking.
 ENDFORM.

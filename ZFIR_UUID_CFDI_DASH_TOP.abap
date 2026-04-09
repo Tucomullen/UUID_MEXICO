@@ -117,12 +117,15 @@ ENDCLASS.
 ** REFERENCIAS A OBJETOS GUI (CONTENIDO DE PESTAÑAS)                **
 **********************************************************************
 
-*     Tab 1: Splitter + KPI doc + Pie chart
+*     Tab 1: Splitter + HTML KPI + ALV Resumen
 DATA: go_split_t1   TYPE REF TO cl_gui_splitter_container,
-      go_cont_t1_l  TYPE REF TO cl_gui_container,
-      go_cont_t1_r  TYPE REF TO cl_gui_container,
-      go_kpi_doc    TYPE REF TO cl_dd_document,
-      go_chart_t1   TYPE REF TO cl_gui_chart_engine.
+      go_split_t1_b TYPE REF TO cl_gui_splitter_container,
+      go_cont_t1_t  TYPE REF TO cl_gui_container,   " Top (HTML)
+      go_cont_t1_bl TYPE REF TO cl_gui_container,   " Bottom Left (ALV)
+      go_cont_t1_br TYPE REF TO cl_gui_container,   " Bottom Right (ALV)
+      go_html_kpi   TYPE REF TO cl_gui_html_viewer,
+      go_alv_kpi    TYPE REF TO cl_gui_alv_grid,
+      go_alv_kpi_2  TYPE REF TO cl_gui_alv_grid.
 
 *     Tab 2: Splitter + ALV sociedad + Barras
 DATA: go_split_t2   TYPE REF TO cl_gui_splitter_container,

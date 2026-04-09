@@ -24,9 +24,4 @@ INCLUDE zfir_uuid_cfdi_dash_frm06.  " Tab 5: ALV detalle + drill-down
 **********************************************************************
 START-OF-SELECTION.
   PERFORM frm_cargar_datos.
-  
-  " 1. Escribimos algo vacío para que se instancie la pantalla de Lista (0120)
-  WRITE: space.
-  
-  " 2. Luego construimos el UI sobre esa pantalla
-  PERFORM frm_build_gui_docking.
+  CALL SCREEN 0100.
