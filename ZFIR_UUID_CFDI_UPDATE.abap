@@ -7,17 +7,18 @@
 **------------------------------------------------------------------**
 ** Autor:      Acciona TIC - Desarrollo ABAP                       **
 ** Fecha:      03/04/2026                                           **
-** Versión:    1.0                                                  **
+** Versión:    2.0                                                  **
+**------------------------------------------------------------------**
+** V1.0  03/04/2026  Versión inicial (fichero local + carpeta)      **
+** V2.0  10/04/2026  Modo servidor AL11 recursivo (fondo SM36)      **
 **------------------------------------------------------------------**
 ** Dependencias:                                                    **
 **   - Text ID 'YUUD' para objeto 'BELEG' (ya existente)           **
 **   - Tabla T001Z con PARTY = 'MX_RFC' (mapeo RFC <-> BUKRS)      **
 **   - Tablas estándar: LFA1, KNA1, BKPF, BSEG                    **
 **   - Objeto autorización F_BKPF_BUK                              **
+**   - Tablas Z: ZTT_UUID_LOG, ZTT_UUID_EXEC (persistencia log)    **
 **   - Programa relacionado: ZFII_MEXICO_UIID (transacción ZFI271) **
-**------------------------------------------------------------------**
-** Historial de cambios:                                            **
-**   V1.0  03/04/2026  Versión inicial                              **
 **********************************************************************
 REPORT zfir_uuid_cfdi_update LINE-SIZE 250.
 
@@ -26,33 +27,44 @@ REPORT zfir_uuid_cfdi_update LINE-SIZE 250.
 **********************************************************************
 INCLUDE zfir_uuid_cfdi_update_top.   " Tipos, datos globales, pantalla
 INCLUDE zfir_uuid_cfdi_update_sel00. " Lógica pantalla selección (F4)
-INCLUDE zfir_uuid_cfdi_update_frm00. " Lectura y parseo CSV
+INCLUDE zfir_uuid_cfdi_update_frm00. " Lectura/parseo CSV + servidor
 INCLUDE zfir_uuid_cfdi_update_frm01. " Localización documentos BKPF/BSEG
 INCLUDE zfir_uuid_cfdi_update_frm02. " Grabación UUID y salida ALV
 
 **********************************************************************
-** MATCH-CODE PARA FICHERO CSV (F4)                                 **
+** MATCH-CODE PARA FICHERO CSV (F4) — Definido en SEL00             **
 **********************************************************************
-AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_file.
-  PERFORM frm_f4_fichero_csv.
-
-**********************************************************************
-** VALIDACIONES DE PANTALLA DE SELECCIÓN                            **
-**********************************************************************
-AT SELECTION-SCREEN.
-  PERFORM frm_validar_seleccion.
+* Los eventos AT SELECTION-SCREEN están en el include SEL00:
+*   - ON VALUE-REQUEST FOR p_file → frm_f4_fichero_csv
+*   - ON VALUE-REQUEST FOR p_sdir → frm_f4_servidor
+*   - AT SELECTION-SCREEN OUTPUT  → mostrar/ocultar campos
+*   - AT SELECTION-SCREEN         → frm_validar_seleccion
 
 **********************************************************************
 ** EJECUCIÓN PRINCIPAL                                              **
 **********************************************************************
 START-OF-SELECTION.
 
-  IF p_carp = 'X'.
-*   ---- MODO CARPETA: procesar todos los CSV de la carpeta ----
+  IF p_serv = 'X'.
+*   =====================================================
+*   MODO SERVIDOR (AL11): procesamiento recursivo
+*   Compatible con ejecución en fondo (SM36)
+*   Log → tablas Z + spool (WRITE)
+*   =====================================================
+    PERFORM frm_procesar_servidor.
+
+  ELSEIF p_carp = 'X'.
+*   =====================================================
+*   MODO CARPETA LOCAL: procesar todos los CSV de 1 carpeta
+*   Requiere SAP GUI (no compatible con fondo)
+*   =====================================================
     PERFORM frm_procesar_carpeta.
 
   ELSE.
-*   ---- MODO FICHERO: un único CSV (comportamiento original) ----
+*   =====================================================
+*   MODO FICHERO: un único CSV desde PC local
+*   Requiere SAP GUI (no compatible con fondo)
+*   =====================================================
 
 *   1. Leer y parsear el fichero CSV desde equipo local
     gv_fichero_actual = p_file.

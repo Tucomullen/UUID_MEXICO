@@ -100,6 +100,12 @@ TYPES: BEGIN OF gty_resumen_fich,
          error    TYPE i,               " Con error
        END OF gty_resumen_fich.
 
+* Estructura para listado de ficheros del servidor (modo AL11)
+TYPES: BEGIN OF gty_server_file,
+         fullpath TYPE string,           " Ruta completa del fichero
+         filename TYPE string,           " Nombre corto (sin ruta)
+       END OF gty_server_file.
+
 **********************************************************************
 ** DATOS GLOBALES                                                   **
 **********************************************************************
@@ -118,6 +124,10 @@ DATA: gt_log_global TYPE TABLE OF gty_log.
 * Resumen por fichero (modo carpeta)
 DATA: gt_resumen_fich TYPE TABLE OF gty_resumen_fich,
       gs_resumen_fich TYPE gty_resumen_fich.
+
+* Lista de ficheros CSV encontrados en servidor (modo AL11)
+DATA: gt_server_files TYPE TABLE OF gty_server_file,
+      gs_server_file  TYPE gty_server_file.
 
 * Fichero en proceso actualmente
 DATA: gv_fichero_actual TYPE string.
@@ -139,25 +149,38 @@ DATA: gv_g_total    TYPE i,  " Total global
 ** PANTALLA DE SELECCIÓN                                            **
 **********************************************************************
 * TEXT ELEMENTS a crear manualmente en SE38:
-*   text-b01 = 'Archivo de entrada'
+*   text-b01 = 'Origen de datos'
 *   text-b02 = 'Filtros de selección'
+*   text-b03 = 'Opciones de rendimiento'
 *
 * SELECTION TEXTS a crear manualmente en SE38:
-*   P_FICH  = 'Fichero individual'
-*   P_CARP  = 'Carpeta de ficheros (procesa todos los CSV)'
-*   P_FILE  = 'Ruta (fichero o carpeta)'
+*   P_FICH  = 'Fichero individual (PC local)'
+*   P_CARP  = 'Carpeta local (todos los CSV de 1 carpeta)'
+*   P_SERV  = 'Servidor AL11 (recursivo, permite fondo)'
+*   P_FILE  = 'Ruta fichero o carpeta local'
+*   P_SDIR  = 'Directorio raíz en servidor (AL11)'
 *   P_TEST  = 'Modo simulación (no graba)'
+*   P_WAIT  = 'Pausa entre ficheros (segundos)'
 *   S_BUKRS = 'Sociedad'
 *   S_BLART = 'Clase de documento'
 
 SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE text-b01.
-  PARAMETERS: p_fich RADIOBUTTON GROUP g_md DEFAULT 'X',   " Fichero individual
-              p_carp RADIOBUTTON GROUP g_md.               " Carpeta de ficheros
-  PARAMETERS: p_file TYPE rlgrap-filename OBLIGATORY.      " Ruta CSV o carpeta
-  PARAMETERS: p_test AS CHECKBOX DEFAULT 'X'.              " Modo simulación
+  PARAMETERS: p_fich RADIOBUTTON GROUP g_md DEFAULT 'X'
+                USER-COMMAND md_change,                      " Fichero individual
+              p_carp RADIOBUTTON GROUP g_md,                 " Carpeta local
+              p_serv RADIOBUTTON GROUP g_md.                 " Servidor AL11
+  SELECTION-SCREEN SKIP 1.
+  PARAMETERS: p_file TYPE rlgrap-filename MODIF ID lcl.     " Ruta local
+  PARAMETERS: p_sdir TYPE char255         MODIF ID srv.     " Ruta servidor
+  SELECTION-SCREEN SKIP 1.
+  PARAMETERS: p_test AS CHECKBOX DEFAULT 'X'.               " Modo simulación
 SELECTION-SCREEN END OF BLOCK b1.
 
 SELECTION-SCREEN BEGIN OF BLOCK b2 WITH FRAME TITLE text-b02.
   SELECT-OPTIONS: s_bukrs FOR bkpf-bukrs,                   " Sociedad (opcional)
                   s_blart FOR bkpf-blart.                   " Clase de documento
 SELECTION-SCREEN END OF BLOCK b2.
+
+SELECTION-SCREEN BEGIN OF BLOCK b3 WITH FRAME TITLE text-b03.
+  PARAMETERS: p_wait TYPE i DEFAULT 0.                      " Pausa entre ficheros (seg)
+SELECTION-SCREEN END OF BLOCK b3.

@@ -1,8 +1,9 @@
 *&---------------------------------------------------------------------*
 *& Include ZFIR_UUID_CFDI_UPDATE_FRM00
 *&---------------------------------------------------------------------*
-*& Lectura y parseo del archivo CSV desde equipo local
+*& Lectura y parseo de archivos CSV (equipo local + servidor AL11)
 *& Bucle principal de procesamiento de registros
+*& Exploración recursiva de directorios del servidor
 *&---------------------------------------------------------------------*
 
 *&---------------------------------------------------------------------*
@@ -698,3 +699,351 @@ FORM frm_convertir_total
   ENDIF.
 
 ENDFORM.                    " FRM_CONVERTIR_TOTAL
+
+*&=====================================================================*
+*&  NUEVOS FORMS PARA MODO SERVIDOR (AL11)                            *
+*&  Lectura recursiva de directorios y lectura CSV con OPEN DATASET   *
+*&=====================================================================*
+
+*&---------------------------------------------------------------------*
+*& Form FRM_LISTAR_CSV_SERV_RECURSIVO
+*&---------------------------------------------------------------------*
+*& Explora recursivamente el directorio pv_dir en el servidor SAP
+*& y acumula todas las rutas de ficheros .csv en gt_server_files.
+*& Usa EPS_GET_DIRECTORY_LISTING para listar cada directorio.
+*& En rutas UNC Windows la barra es \; en Unix es /.
+*&---------------------------------------------------------------------*
+FORM frm_listar_csv_serv_recursivo
+  USING pv_dir TYPE string.
+
+  DATA: lv_dirname   TYPE char255,
+        lv_name      TYPE char255,
+        lv_type      TYPE c,
+        lv_len       TYPE i,
+        lv_err       TYPE i,
+        lv_errmsg    TYPE char80,
+        lv_fullpath  TYPE string,
+        lv_sep       TYPE c LENGTH 1,
+        lv_ext       TYPE string,
+        lv_fn_len    TYPE i,
+        lv_fn_off    TYPE i,
+        lv_fn_c      TYPE char255,
+        lt_subdirs   TYPE TABLE OF string,
+        lv_subdir    TYPE string.
+
+* Determinar separador según formato de ruta
+  IF pv_dir CS '\'.
+    lv_sep = '\'.
+  ELSE.
+    lv_sep = '/'.
+  ENDIF.
+
+  lv_dirname = pv_dir.
+
+* Las llamadas C_DIR_READ_START a veces fallan si la ruta termina
+* en barra (\ o /). La eliminamos antes de llamar si existe.
+  DATA: lv_dirname_len TYPE i.
+  lv_dirname_len = strlen( lv_dirname ).
+  IF lv_dirname_len > 0.
+    lv_dirname_len = lv_dirname_len - 1.
+    IF lv_dirname+lv_dirname_len(1) = '\' OR lv_dirname+lv_dirname_len(1) = '/'.
+      lv_dirname = lv_dirname(lv_dirname_len).
+    ENDIF.
+  ENDIF.
+
+* Usamos la llamada al kernel directamente para evitar las limitaciones
+* de longitud de EPS_GET_DIRECTORY_LISTING y sus problemas con UNC
+  CALL 'C_DIR_READ_START' ID 'DIR'    FIELD lv_dirname
+                          ID 'FILE'   FIELD space  " 'space' es más seguro que '*.*' en entornos mixtos
+                          ID 'ERRNO'  FIELD lv_err
+                          ID 'ERRMSG' FIELD lv_errmsg.
+  IF sy-subrc <> 0.
+    WRITE: / 'Aviso: No se pudo leer el directorio:', lv_dirname.
+    WRITE: / 'Motivo (kernel):', lv_err, lv_errmsg.
+    RETURN.
+  ENDIF.
+
+  DO.
+    CALL 'C_DIR_READ_NEXT' ID 'TYPE'   FIELD lv_type
+                           ID 'NAME'   FIELD lv_name
+                           ID 'LEN'    FIELD lv_len
+                           ID 'ERRNO'  FIELD lv_err
+                           ID 'ERRMSG' FIELD lv_errmsg.
+*   sy-subrc = 1 significa fin del directorio
+    IF sy-subrc <> 0 OR lv_name IS INITIAL.
+      EXIT.
+    ENDIF.
+
+*   Ignorar . y ..
+    IF lv_name = '.' OR lv_name = '..'.
+      CONTINUE.
+    ENDIF.
+
+*   Construir ruta completa usando lv_dirname (sin barra final)
+    CONCATENATE lv_dirname lv_sep lv_name INTO lv_fullpath.
+
+    IF lv_type = 'D' OR lv_type = 'd'.
+*     Anotar subdirectorio en tabla local para procesarlos AL FINAL de este escaneo
+*     y evitar el error del Kernel "Last dir scan has not be finished"
+      APPEND lv_fullpath TO lt_subdirs.
+
+    ELSEIF lv_type = 'F' OR lv_type = 'f' OR lv_type = ' ' OR lv_type = '-'.
+*     Comprobar si tiene extensión .csv
+      lv_fn_len = strlen( lv_name ).
+      IF lv_fn_len > 4.
+        lv_fn_off = lv_fn_len - 4.
+        lv_fn_c = lv_name.
+        lv_ext = lv_fn_c+lv_fn_off(4).
+        TRANSLATE lv_ext TO UPPER CASE.
+
+        IF lv_ext = '.CSV'.
+          CLEAR gs_server_file.
+          gs_server_file-fullpath = lv_fullpath.
+          gs_server_file-filename = lv_name.
+          APPEND gs_server_file TO gt_server_files.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+  ENDDO.
+
+  CALL 'C_DIR_READ_FINISH' ID 'ERRNO'  FIELD lv_err
+                           ID 'ERRMSG' FIELD lv_errmsg.
+
+* Ahora que el recurso del sistema operativo para esta carpeta está cerrado,
+* podemos meternos recursivamente de forma segura en las carpetas hijas.
+  LOOP AT lt_subdirs INTO lv_subdir.
+    PERFORM frm_listar_csv_serv_recursivo USING lv_subdir.
+  ENDLOOP.
+
+ENDFORM.                    " FRM_LISTAR_CSV_SERV_RECURSIVO
+
+*&---------------------------------------------------------------------*
+*& Form FRM_LEER_CSV_SERVIDOR
+*&---------------------------------------------------------------------*
+*& Lee un fichero CSV del servidor SAP usando OPEN DATASET.
+*& Compatible con ejecución en fondo (no requiere GUI).
+*& Parsea el contenido igual que frm_leer_csv_fichero pero sin
+*& cl_gui_frontend_services.
+*&---------------------------------------------------------------------*
+FORM frm_leer_csv_servidor
+  USING pv_fullpath TYPE string.
+
+  DATA: lv_line     TYPE string,
+        ls_datos    TYPE gty_csv_data,
+        lv_index    TYPE i,
+        lv_first    TYPE c VALUE 'X'.  " Flag primera línea
+
+* Limpiar tabla de datos para este fichero
+  REFRESH gt_csv_data.
+
+* Abrir fichero en el servidor
+  OPEN DATASET pv_fullpath FOR INPUT IN TEXT MODE ENCODING UTF-8.
+  IF sy-subrc <> 0.
+*   No se pudo abrir → registrar error en log (no abortar el lote)
+    CLEAR gs_log.
+    gs_log-icon    = gc_icon_err.
+    CONCATENATE 'Error al abrir fichero en servidor:' pv_fullpath
+      INTO gs_log-mensaje SEPARATED BY space.
+    APPEND gs_log TO gt_log.
+    gv_error = gv_error + 1.
+    RETURN.
+  ENDIF.
+
+* Leer línea por línea
+  DO.
+    READ DATASET pv_fullpath INTO lv_line.
+    IF sy-subrc <> 0.
+      EXIT. " Fin de fichero
+    ENDIF.
+
+    lv_index = lv_index + 1.
+
+*   Primera línea: cabecera (con posible BOM UTF-8) → saltar
+    IF lv_first = 'X'.
+      CLEAR lv_first.
+      PERFORM frm_eliminar_bom CHANGING lv_line.
+      CONTINUE.
+    ENDIF.
+
+*   Ignorar líneas vacías
+    IF lv_line IS INITIAL.
+      CONTINUE.
+    ENDIF.
+
+*   Parsear línea CSV (separador ; o |)
+    CLEAR ls_datos.
+    REPLACE ALL OCCURRENCES OF '|' IN lv_line WITH ';'.
+    SPLIT lv_line AT ';' INTO
+      ls_datos-rfc_emisor
+      ls_datos-rfc_receptor
+      ls_datos-serie
+      ls_datos-folio
+      ls_datos-fecha
+      ls_datos-total
+      ls_datos-tipocomprobante
+      ls_datos-uuid.
+
+    CONDENSE ls_datos-rfc_emisor NO-GAPS.
+    CONDENSE ls_datos-rfc_receptor NO-GAPS.
+    CONDENSE ls_datos-serie NO-GAPS.
+    CONDENSE ls_datos-folio NO-GAPS.
+    CONDENSE ls_datos-uuid NO-GAPS.
+    CONDENSE ls_datos-tipocomprobante NO-GAPS.
+    TRANSLATE ls_datos-uuid TO UPPER CASE.
+    TRANSLATE ls_datos-tipocomprobante TO UPPER CASE.
+
+*   Si no hay UUID, saltar sin error
+    IF ls_datos-uuid IS INITIAL.
+      CONTINUE.
+    ENDIF.
+
+*   Validar formato UUID (36 caracteres con guiones)
+    IF strlen( ls_datos-uuid ) <> 36.
+      CLEAR gs_log.
+      gs_log-icon         = gc_icon_err.
+      gs_log-rfc_emisor   = ls_datos-rfc_emisor.
+      gs_log-rfc_receptor = ls_datos-rfc_receptor.
+      gs_log-serie        = ls_datos-serie.
+      gs_log-folio        = ls_datos-folio.
+      gs_log-tipo         = ls_datos-tipocomprobante.
+      gs_log-uuid         = ls_datos-uuid.
+      gs_log-mensaje      = 'UUID con formato incorrecto (debe ser 36 caracteres)'.
+      APPEND gs_log TO gt_log.
+      gv_error = gv_error + 1.
+      CONTINUE.
+    ENDIF.
+
+    APPEND ls_datos TO gt_csv_data.
+
+  ENDDO.
+
+* Cerrar fichero
+  CLOSE DATASET pv_fullpath.
+
+ENDFORM.                    " FRM_LEER_CSV_SERVIDOR
+
+*&---------------------------------------------------------------------*
+*& Form FRM_PROCESAR_SERVIDOR
+*&---------------------------------------------------------------------*
+*& Modo servidor: explora recursivamente el directorio indicado en
+*& P_SDIR, localiza todos los CSV y los procesa uno a uno.
+*& Log se escribe en tablas Z + WRITE (spool para ejecución en fondo).
+*& No usa GUI → compatible con SM36.
+*&---------------------------------------------------------------------*
+FORM frm_procesar_servidor.
+
+  DATA: lv_dir        TYPE string,
+        lv_nfich      TYPE i,
+        lv_short_name TYPE string,
+        lv_idx        TYPE i.
+
+  lv_dir = p_sdir.
+
+* ---- 1. Explorar directorios recursivamente ----
+  WRITE: / '================================================'.
+  WRITE: / 'INICIO procesamiento servidor AL11'.
+  WRITE: / 'Directorio raíz:', lv_dir.
+  WRITE: / 'Fecha:', sy-datum, 'Hora:', sy-uzeit.
+  WRITE: / 'Modo:', COND string( WHEN p_test = 'X' THEN 'SIMULACIÓN' ELSE 'PRODUCTIVO' ).
+  WRITE: / '================================================'.
+  WRITE: / 'Explorando directorios...'.
+
+  REFRESH gt_server_files.
+  PERFORM frm_listar_csv_serv_recursivo USING lv_dir.
+
+  lv_nfich = lines( gt_server_files ).
+  WRITE: / 'Ficheros CSV encontrados:', lv_nfich.
+
+  IF lv_nfich = 0.
+    WRITE: / 'ERROR: No se encontraron ficheros CSV en la estructura de directorios.'.
+    RETURN.
+  ENDIF.
+
+* ---- 2. Inicializar acumuladores globales ----
+  CLEAR: gv_g_total, gv_g_ok, gv_g_warning, gv_g_error, gv_g_ficheros.
+  REFRESH: gt_log_global, gt_resumen_fich.
+
+  WRITE: / '------------------------------------------------'.
+
+* ---- 3. Procesar cada fichero CSV ----
+  LOOP AT gt_server_files INTO gs_server_file.
+    lv_idx = sy-tabix.
+    gv_fichero_actual = gs_server_file-fullpath.
+    lv_short_name     = gs_server_file-filename.
+    gv_g_ficheros     = gv_g_ficheros + 1.
+
+*   Progreso al spool
+    WRITE: / lv_idx, '/', lv_nfich, '-', lv_short_name.
+
+*   Reiniciar datos de este fichero
+    REFRESH gt_csv_data.
+    REFRESH gt_log.
+    CLEAR: gv_total, gv_ok, gv_warning, gv_error.
+
+*   Leer y parsear el CSV desde servidor
+    PERFORM frm_leer_csv_servidor USING gs_server_file-fullpath.
+
+*   Si hay registros válidos, procesar
+    IF gt_csv_data IS NOT INITIAL.
+      PERFORM frm_procesar_registros.
+    ENDIF.
+
+*   Etiquetar log con nombre corto y acumular en log global
+    LOOP AT gt_log INTO gs_log.
+      gs_log-fichero = lv_short_name.
+      MODIFY gt_log FROM gs_log.
+      APPEND gs_log TO gt_log_global.
+    ENDLOOP.
+
+*   Grabar log del fichero actual en tablas Z
+    gv_fichero_actual = lv_short_name.
+    PERFORM frm_save_log_ztable.
+
+*   Acumular contadores globales
+    gv_g_total   = gv_g_total   + gv_total.
+    gv_g_ok      = gv_g_ok      + gv_ok.
+    gv_g_warning = gv_g_warning + gv_warning.
+    gv_g_error   = gv_g_error   + gv_error.
+
+*   Guardar resumen por fichero
+    CLEAR gs_resumen_fich.
+    gs_resumen_fich-fichero  = lv_short_name.
+    gs_resumen_fich-total    = gv_total.
+    gs_resumen_fich-ok       = gv_ok.
+    gs_resumen_fich-warning  = gv_warning.
+    gs_resumen_fich-error    = gv_error.
+    APPEND gs_resumen_fich TO gt_resumen_fich.
+
+*   Escribir resumen del fichero al spool
+    WRITE: / '  OK:', gv_ok, ' Warn:', gv_warning, ' Err:', gv_error.
+
+*   Throttling: pausa entre ficheros si se ha configurado
+    IF p_wait > 0.
+      WAIT UP TO p_wait SECONDS.
+    ENDIF.
+
+  ENDLOOP.
+
+* ---- 4. Resumen final al spool ----
+  WRITE: / '================================================'.
+  WRITE: / 'RESUMEN FINAL'.
+  WRITE: / '================================================'.
+  WRITE: / 'Ficheros procesados:', gv_g_ficheros.
+  WRITE: / 'Total registros:   ', gv_g_total.
+  WRITE: / 'OK:                ', gv_g_ok.
+  WRITE: / 'Warnings:          ', gv_g_warning.
+  WRITE: / 'Errores:           ', gv_g_error.
+
+  IF gv_g_total > 0.
+    DATA: lv_pct TYPE p DECIMALS 1.
+    lv_pct = ( gv_g_ok * 100 ) / gv_g_total.
+    WRITE: / '% Éxito:           ', lv_pct, '%'.
+  ENDIF.
+
+  WRITE: / '================================================'.
+  WRITE: / 'FIN. Revisar resultados detallados en el Dashboard'.
+  WRITE: / '(transacción del programa ZFIR_UUID_CFDI_DASH)'.
+  WRITE: / '================================================'.
+
+ENDFORM. " FRM_PROCESAR_SERVIDOR
+
