@@ -28,7 +28,12 @@ CONSTANTS:
 * Tipos de factura
   gc_tipo_compra TYPE c VALUE 'C',  " Compra
   gc_tipo_venta  TYPE c VALUE 'V',  " Venta
-  gc_tipo_interco TYPE c VALUE 'I'. " Intercompany
+  gc_tipo_interco TYPE c VALUE 'I', " Intercompany
+
+* Estados de UUID existente
+  gc_stat_empty  TYPE c VALUE '0', " Sin UUID
+  gc_stat_same   TYPE c VALUE '1', " Ya existe y coincide
+  gc_stat_diff   TYPE c VALUE '2'. " Ya existe y es diferente
 
 **********************************************************************
 ** TIPOS DE DATOS                                                   **

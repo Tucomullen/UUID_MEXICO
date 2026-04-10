@@ -268,47 +268,25 @@ FORM frm_procesar_intercompany
       USING ps_datos pv_bukrs_emi lv_belnr_v pv_gjahr.
   ENDIF.
 
-* ---- Gestión de warnings intercompany ----
-* Si uno ya tenía UUID y el otro no, registrar warning
-  IF lv_error_uuid_c = 'X' AND lv_error_uuid_v = ''.
+* ---- Gestión de logs intercompany ----
+* Si uno tenía discrepancia y el otro no, o si ambos están OK pero uno ya estaba marcado.
+* Nota: Los mensajes individuales ya se añadieron en los obtener_factura.
+* Solo añadimos mensaje extra si hay discrepancia entre ambos lados.
+  IF lv_error_uuid_c = 'X' OR lv_error_uuid_v = 'X'.
     CLEAR gs_log.
     gs_log-icon    = gc_icon_warn.
     gs_log-bukrs   = pv_bukrs_rec.
-    gs_log-belnr   = lv_belnr_c.
-    gs_log-gjahr   = pv_gjahr.
     gs_log-rfc_emisor   = ps_datos-rfc_emisor.
     gs_log-rfc_receptor = ps_datos-rfc_receptor.
     gs_log-folio   = ps_datos-folio.
-    gs_log-tipo    = ps_datos-tipocomprobante.
     gs_log-tipo_fac = gc_tipo_interco.
     gs_log-uuid    = ps_datos-uuid.
-    CONCATENATE 'WARNING: UUID ya existía en lado compra (Soc./Doc.):'
-      pv_bukrs_rec lv_belnr_c
-      INTO gs_log-mensaje SEPARATED BY space.
+    gs_log-mensaje = 'REVISAR: Operación Intercompany con discrepancia de UUID en algún lado.'.
     APPEND gs_log TO gt_log.
-    gv_warning = gv_warning + 1.
   ENDIF.
 
-  IF lv_error_uuid_v = 'X' AND lv_error_uuid_c = ''.
-    CLEAR gs_log.
-    gs_log-icon    = gc_icon_warn.
-    gs_log-bukrs   = pv_bukrs_emi.
-    gs_log-belnr   = lv_belnr_v.
-    gs_log-gjahr   = pv_gjahr.
-    gs_log-rfc_emisor   = ps_datos-rfc_emisor.
-    gs_log-rfc_receptor = ps_datos-rfc_receptor.
-    gs_log-folio   = ps_datos-folio.
-    gs_log-tipo    = ps_datos-tipocomprobante.
-    gs_log-tipo_fac = gc_tipo_interco.
-    gs_log-uuid    = ps_datos-uuid.
-    CONCATENATE 'WARNING: UUID ya existía en lado venta (Soc./Doc.):'
-      pv_bukrs_emi lv_belnr_v
-      INTO gs_log-mensaje SEPARATED BY space.
-    APPEND gs_log TO gt_log.
-    gv_warning = gv_warning + 1.
-  ENDIF.
+ENDFORM. " FRM_PROCESAR_INTERCOMPANY
 
-ENDFORM.                    " FRM_PROCESAR_INTERCOMPANY
 
 *&---------------------------------------------------------------------*
 *& Form FRM_OBTENER_FACTURA_COMPRA
@@ -487,12 +465,14 @@ FORM frm_obtener_factura_compra
 *   Documento único encontrado -> verificar UUID existente
     READ TABLE lt_belnr_match INTO pv_belnr INDEX 1.
 
-    PERFORM frm_existe_uuid
-      USING pv_bukrs pv_belnr pv_gjahr
-      CHANGING lv_flag lv_uuid_prev.
 
-    IF lv_flag = 'X'.
-*     UUID ya existe -> warning, NO sobrescribir
+    DATA: lv_status TYPE c.
+    PERFORM frm_existe_uuid
+      USING pv_bukrs pv_belnr pv_gjahr ps_datos-uuid
+      CHANGING lv_status lv_uuid_prev.
+
+    IF lv_status = gc_stat_diff.
+*     UUID ya existe y es DISTINTO -> warning
       pv_error_uuid = 'X'.
       CLEAR gs_log.
       gs_log-icon         = gc_icon_warn.
@@ -506,7 +486,7 @@ FORM frm_obtener_factura_compra
       gs_log-tipo_fac     = gc_tipo_compra.
       gs_log-uuid         = ps_datos-uuid.
       gs_log-uuid_previo  = lv_uuid_prev.
-      CONCATENATE 'UUID ya existente en documento:' pv_bukrs pv_belnr pv_gjahr
+      CONCATENATE 'Discrepancia: Documento ya tiene otro UUID:' pv_bukrs pv_belnr pv_gjahr
         INTO gs_log-mensaje SEPARATED BY space.
       gs_log-budat     = ls_bkpf-budat.
       gs_log-bldat     = ls_bkpf-bldat.
@@ -515,6 +495,24 @@ FORM frm_obtener_factura_compra
       gs_log-test_mode = p_test.
       APPEND gs_log TO gt_log.
       gv_warning = gv_warning + 1.
+    ELSEIF lv_status = gc_stat_same.
+*     UUID ya existe y es el MISMO -> Todo OK, no hacer nada
+      pv_error_uuid = 'S'. " Status: Same (No action needed)
+      CLEAR gs_log.
+      gs_log-icon         = gc_icon_ok.
+      gs_log-bukrs        = pv_bukrs.
+      gs_log-belnr        = pv_belnr.
+      gs_log-gjahr        = pv_gjahr.
+      gs_log-rfc_emisor   = ps_datos-rfc_emisor.
+      gs_log-rfc_receptor = ps_datos-rfc_receptor.
+      gs_log-folio        = ps_datos-folio.
+      gs_log-tipo         = ps_datos-tipocomprobante.
+      gs_log-tipo_fac     = gc_tipo_compra.
+      gs_log-uuid         = ps_datos-uuid.
+      gs_log-mensaje      = 'El documento ya cuenta con el mismo UUID.'.
+      gs_log-test_mode    = p_test.
+      APPEND gs_log TO gt_log.
+      gv_ok = gv_ok + 1.
     ENDIF.
   ENDIF.
 
@@ -729,14 +727,15 @@ FORM frm_obtener_factura_venta
     pv_error = 'X'.
 
   ELSEIF lv_registros = 1.
-*   Documento único encontrado -> verificar UUID existente
     READ TABLE lt_belnr_match INTO pv_belnr INDEX 1.
 
+    DATA: lv_status TYPE c.
     PERFORM frm_existe_uuid
-      USING pv_bukrs pv_belnr pv_gjahr
-      CHANGING lv_flag lv_uuid_prev.
+      USING pv_bukrs pv_belnr pv_gjahr ps_datos-uuid
+      CHANGING lv_status lv_uuid_prev.
 
-    IF lv_flag = 'X'.
+    IF lv_status = gc_stat_diff.
+*     UUID ya existe y es DISTINTO -> warning
       pv_error_uuid = 'X'.
       CLEAR gs_log.
       gs_log-icon         = gc_icon_warn.
@@ -750,7 +749,7 @@ FORM frm_obtener_factura_venta
       gs_log-tipo_fac     = gc_tipo_venta.
       gs_log-uuid         = ps_datos-uuid.
       gs_log-uuid_previo  = lv_uuid_prev.
-      CONCATENATE 'UUID ya existente en documento:' pv_bukrs pv_belnr pv_gjahr
+      CONCATENATE 'Discrepancia: Documento ya tiene otro UUID:' pv_bukrs pv_belnr pv_gjahr
         INTO gs_log-mensaje SEPARATED BY space.
       gs_log-budat     = ls_bkpf-budat.
       gs_log-bldat     = ls_bkpf-bldat.
@@ -759,6 +758,24 @@ FORM frm_obtener_factura_venta
       gs_log-test_mode = p_test.
       APPEND gs_log TO gt_log.
       gv_warning = gv_warning + 1.
+    ELSEIF lv_status = gc_stat_same.
+*     UUID ya existe y es el MISMO -> Todo OK
+      pv_error_uuid = 'S'.
+      CLEAR gs_log.
+      gs_log-icon         = gc_icon_ok.
+      gs_log-bukrs        = pv_bukrs.
+      gs_log-belnr        = pv_belnr.
+      gs_log-gjahr        = pv_gjahr.
+      gs_log-rfc_emisor   = ps_datos-rfc_emisor.
+      gs_log-rfc_receptor = ps_datos-rfc_receptor.
+      gs_log-folio        = ps_datos-folio.
+      gs_log-tipo         = ps_datos-tipocomprobante.
+      gs_log-tipo_fac     = gc_tipo_venta.
+      gs_log-uuid         = ps_datos-uuid.
+      gs_log-mensaje      = 'El documento ya cuenta con el mismo UUID.'.
+      gs_log-test_mode    = p_test.
+      APPEND gs_log TO gt_log.
+      gv_ok = gv_ok + 1.
     ENDIF.
   ENDIF.
 

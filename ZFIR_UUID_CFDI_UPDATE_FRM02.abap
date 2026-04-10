@@ -11,13 +11,16 @@ FORM frm_existe_uuid
   USING    value(pv_bukrs) TYPE char10
            value(pv_belnr) TYPE belnr_d
            value(pv_gjahr) TYPE gjahr
-  CHANGING pv_existe       TYPE c
+           value(pv_uuid_csv) TYPE char36
+  CHANGING pv_status       TYPE c
            pv_uuid_previo  TYPE char36.
 
   DATA: lt_lines    TYPE TABLE OF tline WITH HEADER LINE,
         lv_name_doc TYPE tdobname.
 
-  CLEAR: pv_existe, pv_uuid_previo.
+  pv_status = gc_stat_empty.
+  CLEAR pv_uuid_previo.
+
   CONCATENATE pv_bukrs pv_belnr pv_gjahr INTO lv_name_doc.
   CONDENSE lv_name_doc NO-GAPS.
 
@@ -35,8 +38,12 @@ FORM frm_existe_uuid
   IF sy-subrc = 0.
     READ TABLE lt_lines INDEX 1.
     IF sy-subrc = 0 AND lt_lines-tdline IS NOT INITIAL.
-      pv_existe = 'X'.
       pv_uuid_previo = lt_lines-tdline.
+      IF pv_uuid_previo = pv_uuid_csv.
+        pv_status = gc_stat_same.
+      ELSE.
+        pv_status = gc_stat_diff.
+      ENDIF.
     ENDIF.
   ENDIF.
 ENDFORM.
@@ -78,8 +85,10 @@ FORM frm_salvar_uuid
 
   IF sy-subrc = 0.
     COMMIT WORK AND WAIT.
-    PERFORM frm_existe_uuid USING pv_bukrs pv_belnr pv_gjahr CHANGING lv_ok lv_dummy.
-    IF lv_ok = ''. pv_error = 'X'. ENDIF.
+    PERFORM frm_existe_uuid
+      USING pv_bukrs pv_belnr pv_gjahr pv_uuid
+      CHANGING lv_ok lv_dummy.
+    IF lv_ok <> gc_stat_same. pv_error = 'X'. ENDIF.
   ELSE.
     pv_error = 'X'.
   ENDIF.
