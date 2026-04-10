@@ -91,6 +91,36 @@ DATA: gv_tab1_init   TYPE c LENGTH 1,
       gv_tab4_init   TYPE c LENGTH 1,
       gv_tab5_init   TYPE c LENGTH 1.
 
+* Filtro activo por drill-down (KPI cards)
+DATA: gv_drilldown_status TYPE char10.
+
+* Estructura para reporte de continuidad (Gaps)
+TYPES: BEGIN OF gty_continuity,
+         bukrs TYPE bukrs,
+         gjahr TYPE gjahr,
+         m01   TYPE icon_d,
+         m02   TYPE icon_d,
+         m03   TYPE icon_d,
+         m04   TYPE icon_d,
+         m05   TYPE icon_d,
+         m06   TYPE icon_d,
+         m07   TYPE icon_d,
+         m08   TYPE icon_d,
+         m09   TYPE icon_d,
+         m10   TYPE icon_d,
+         m11   TYPE icon_d,
+         m12   TYPE icon_d,
+       END OF gty_continuity.
+
+DATA: gt_continuity TYPE TABLE OF gty_continuity,
+      gs_continuity TYPE gty_continuity.
+
+TYPES: BEGIN OF gty_rfc_bukrs,
+         rfc   TYPE char13,
+         bukrs TYPE bukrs,
+       END OF gty_rfc_bukrs.
+DATA: gt_rfc_bukrs TYPE TABLE OF gty_rfc_bukrs.
+
 * Contenedores principales (Substituyen a las "Screens")
 DATA: go_docking       TYPE REF TO cl_gui_docking_container,
       go_main_splitter TYPE REF TO cl_gui_splitter_container,
@@ -100,7 +130,7 @@ DATA: go_docking       TYPE REF TO cl_gui_docking_container,
 * Toolbar en lugar de Tabstrip
 DATA: go_toolbar TYPE REF TO cl_gui_toolbar.
 
-* Event Receiver para el Toolbar
+* Event Receiver para el Toolbar y HTML
 CLASS lcl_event_receiver DEFINITION DEFERRED.
 DATA: go_event_receiver TYPE REF TO lcl_event_receiver.
 
@@ -110,7 +140,10 @@ CLASS lcl_event_receiver DEFINITION.
     METHODS:
       on_function_selected
         FOR EVENT function_selected OF cl_gui_toolbar
-        IMPORTING fcode.
+        IMPORTING fcode,
+      on_sapevent
+        FOR EVENT sapevent OF cl_gui_html_viewer
+        IMPORTING action frame getdata postdata query_table.
 ENDCLASS.
 
 **********************************************************************

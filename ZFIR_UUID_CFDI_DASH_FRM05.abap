@@ -26,6 +26,7 @@ FORM frm_build_tab4.
     ls_fcat-fieldname = &1.
     ls_fcat-coltext   = &2.
     ls_fcat-outputlen = &3.
+    ls_fcat-col_opt   = 'X'.
     APPEND ls_fcat TO lt_fcat.
   END-OF-DEFINITION.
 

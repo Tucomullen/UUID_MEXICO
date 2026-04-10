@@ -7,8 +7,33 @@
 CLASS lcl_event_receiver IMPLEMENTATION.
   METHOD on_function_selected.
     gv_tab_key = fcode.
+    " Si se cambia de pestaña manualmente, limpiar filtro de drill-down
+    IF fcode CP 'TAB*'.
+      CLEAR gv_drilldown_status.
+    ENDIF.
     " Disparar la lógica de renderizar tab
     PERFORM frm_render_active_tab.
+  ENDMETHOD.
+
+  METHOD on_sapevent.
+    " Manejar clics desde el HTML (KPI cards)
+    DATA: lv_action TYPE string.
+    lv_action = action.
+    
+    TRANSLATE lv_action TO UPPER CASE.
+
+    CASE lv_action.
+      WHEN 'DRILLDOWN_OK' OR 'DRILLDOWN_WARN' OR 'DRILLDOWN_ERR'.
+        gv_drilldown_status = lv_action.
+        gv_tab_key          = 'TAB5'.
+        
+        " Renderizar el nuevo contenido
+        PERFORM frm_render_active_tab.
+        
+        " CRUCIAL: Forzar a la pantalla (Dynpro 0100) a refrescarse 
+        " enviando un OK_CODE ficticio, lo que desencadena un PAI->PBO completo.
+        cl_gui_cfw=>set_new_ok_code( new_code = 'DUMMY' ).
+    ENDCASE.
   ENDMETHOD.
 ENDCLASS.
 
@@ -137,19 +162,33 @@ FORM frm_build_toolbar_buttons.
   ls_button-icon      = '@J2@'.
   ls_button-text      = 'Exportar'.
   go_toolbar->add_button( fcode = ls_button-function icon = ls_button-icon butn_type = 0 text = ls_button-text ).
+
+  go_toolbar->add_button( fcode = '' icon = '' butn_type = 3 ). " Separador
+
+  ls_button-function  = 'DELETE'.
+  ls_button-icon      = '@11@'.  " Papelera
+  ls_button-text      = 'Borrar Histórico'.
+  go_toolbar->add_button( fcode = ls_button-function icon = ls_button-icon butn_type = 0 text = ls_button-text ).
 ENDFORM.
 
 *&---------------------------------------------------------------------*
 *& Form FRM_RENDER_ACTIVE_TAB
+*&---------------------------------------------------------------------*
+*& Determina qué contenido mostrar en base a la función seleccionada
 *&---------------------------------------------------------------------*
 FORM frm_render_active_tab.
 
   IF gv_tab_key = 'REFRESH'.
     PERFORM frm_cargar_datos.
     PERFORM frm_refresh_all_tabs.
-    gv_tab_key = 'TAB1'. " Por defecto ir a tab 1 despues de refrescar
+    gv_tab_key = 'TAB1'. " Por defecto ir a tab 1 después de refrescar
   ENDIF.
   
+  IF gv_tab_key = 'DELETE'.
+    PERFORM frm_delete_logs.
+    RETURN.
+  ENDIF.
+
   IF gv_tab_key = 'EXCEL'.
     PERFORM frm_export_excel.
     RETURN.
@@ -189,6 +228,53 @@ FORM frm_render_active_tab.
 * Hacer que se repinte la GUI para mostrar los hijos regenerados
   cl_gui_cfw=>flush( ).
 
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*& Form FRM_DELETE_LOGS
+*&---------------------------------------------------------------------*
+*& Borra todo el histórico de logs con confirmación previa.
+*&---------------------------------------------------------------------*
+FORM frm_delete_logs.
+  DATA: lv_answer TYPE c.
+
+  CALL FUNCTION 'POPUP_TO_CONFIRM'
+    EXPORTING
+      titlebar              = 'Confirmar borrado de histórico'
+      text_question         = '¿Desea borrar TODOS los registros de log y ejecuciones? Esta acción no se puede deshacer.'
+      text_button_1         = 'Sí, borrar todo'
+      icon_button_1         = '@11@'
+      text_button_2         = 'No, cancelar'
+      icon_button_2         = '@12@'
+      display_cancel_button = ' '
+    IMPORTING
+      answer                = lv_answer
+    EXCEPTIONS
+      text_not_found        = 1
+      OTHERS                = 2.
+
+  IF lv_answer = '1'.
+    " Borrado total de tablas Z
+    DELETE FROM ztt_uuid_log.
+    DELETE FROM ztt_uuid_exec.
+    COMMIT WORK AND WAIT.
+    
+    MESSAGE 'Historial de logs borrado correctamente.' TYPE 'S'.
+    
+    " Limpiar datos en memoria y refrescar UI
+    PERFORM frm_cargar_datos.
+    PERFORM frm_refresh_all_tabs.
+    
+    " Volver a la pestaña principal para ver los KPIs a cero
+    gv_tab_key = 'TAB1'.
+    PERFORM frm_render_active_tab.
+  ELSE.
+    " Si cancela, volvemos a la pestaña donde estaba (o a la 1 por defecto)
+    IF gv_tab_key = 'DELETE'.
+       gv_tab_key = 'TAB1'.
+    ENDIF.
+    PERFORM frm_render_active_tab.
+  ENDIF.
 ENDFORM.
 
 *&---------------------------------------------------------------------*

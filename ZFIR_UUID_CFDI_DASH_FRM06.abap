@@ -37,23 +37,39 @@ FORM frm_build_tab5.
 
   DATA: lt_fcat TYPE lvc_t_fcat,
         ls_fcat TYPE lvc_s_fcat,
-        ls_layo TYPE lvc_s_layo.
+        ls_layo TYPE lvc_s_layo,
+        lv_status TYPE char4.
 
-  CREATE OBJECT go_alv_detail
-    EXPORTING i_parent = go_cont_main.
+  " 1. Preparar datos: Partir siempre del total y filtrar físicamente
+  gt_detail = gt_zlog_raw.
 
-* Registrar handler de doble clic
-  CREATE OBJECT go_evt_handler.
-  SET HANDLER go_evt_handler->on_dbl_click FOR go_alv_detail.
+  IF gv_drilldown_status IS NOT INITIAL.
+    CASE gv_drilldown_status.
+      WHEN 'DRILLDOWN_OK'.   lv_status = '@08@'.
+      WHEN 'DRILLDOWN_WARN'. lv_status = '@09@'.
+      WHEN 'DRILLDOWN_ERR'.  lv_status = '@0A@'.
+    ENDCASE.
+    
+    IF lv_status IS NOT INITIAL.
+      DELETE gt_detail WHERE icon_status <> lv_status.
+    ENDIF.
+  ENDIF.
 
+  " 2. Preparar Layout y Fieldcatalog
   ls_layo-zebra      = 'X'.
   ls_layo-cwidth_opt = 'X'.
+  ls_layo-grid_title = 'Detalle Completo de Registros'.
+
+  IF gv_drilldown_status IS NOT INITIAL.
+    ls_layo-grid_title = |Detalle Filtrado por Estado: { gv_drilldown_status }|.
+  ENDIF.
 
   DEFINE add_fc.
     CLEAR ls_fcat.
     ls_fcat-fieldname = &1.
     ls_fcat-coltext   = &2.
     ls_fcat-outputlen = &3.
+    ls_fcat-col_opt   = 'X'.
     APPEND ls_fcat TO lt_fcat.
   END-OF-DEFINITION.
 
@@ -79,9 +95,21 @@ FORM frm_build_tab5.
   add_fc 'FICHERO'      'Fichero'     30.
   add_fc 'TEST_MODE'    'Simulación'   1.
 
-  go_alv_detail->set_table_for_first_display(
-    EXPORTING is_layout       = ls_layo
-    CHANGING  it_outtab       = gt_detail
-              it_fieldcatalog = lt_fcat ).
+  " 3. Crear o Refrescar ALV (siempre re-renderizamos para asegurar el filtro físico)
+  IF go_alv_detail IS INITIAL.
+    CREATE OBJECT go_alv_detail
+      EXPORTING i_parent = go_cont_main.
+
+    " Registrar handler de doble clic
+    CREATE OBJECT go_evt_handler.
+    SET HANDLER go_evt_handler->on_dbl_click FOR go_alv_detail.
+
+    go_alv_detail->set_table_for_first_display(
+      EXPORTING is_layout       = ls_layo
+      CHANGING  it_outtab       = gt_detail
+                it_fieldcatalog = lt_fcat ).
+  ELSE.
+    go_alv_detail->refresh_table_display( ).
+  ENDIF.
 
 ENDFORM.

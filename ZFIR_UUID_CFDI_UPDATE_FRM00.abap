@@ -935,7 +935,12 @@ FORM frm_procesar_servidor.
   DATA: lv_dir        TYPE string,
         lv_nfich      TYPE i,
         lv_short_name TYPE string,
-        lv_idx        TYPE i.
+        lv_idx        TYPE i,
+        lv_msg        TYPE string,
+        lv_m1         TYPE char50,
+        lv_m2         TYPE char50,
+        lv_m3         TYPE char50,
+        lv_m4         TYPE char50.
 
   lv_dir = p_sdir.
 
@@ -954,8 +959,16 @@ FORM frm_procesar_servidor.
   lv_nfich = lines( gt_server_files ).
   WRITE: / 'Ficheros CSV encontrados:', lv_nfich.
 
+  " Mensaje para el log del Job (SM37)
+  IF sy-batch IS NOT INITIAL.
+    MESSAGE i398(00) WITH 'Exploración finalizada.' lv_nfich 'ficheros encontrados.' ''.
+  ENDIF.
+
   IF lv_nfich = 0.
     WRITE: / 'ERROR: No se encontraron ficheros CSV en la estructura de directorios.'.
+    IF sy-batch IS NOT INITIAL.
+      MESSAGE e398(00) WITH 'No se encontraron ficheros CSV en el servidor.' '' '' ''.
+    ENDIF.
     RETURN.
   ENDIF.
 
@@ -974,6 +987,19 @@ FORM frm_procesar_servidor.
 
 *   Progreso al spool
     WRITE: / lv_idx, '/', lv_nfich, '-', lv_short_name.
+
+    IF sy-batch IS NOT INITIAL.
+      IF lv_idx = 1 OR ( lv_idx MOD 20 = 0 ) OR lv_idx = lv_nfich.
+        lv_msg = |Procesando fichero { lv_idx } de { lv_nfich }: { lv_short_name }|.
+        DATA: lv_padded TYPE c LENGTH 200.
+        lv_padded = lv_msg.
+        lv_m1 = lv_padded(50).
+        lv_m2 = lv_padded+50(50).
+        lv_m3 = lv_padded+100(50).
+        lv_m4 = lv_padded+150(50).
+        MESSAGE i398(00) WITH lv_m1 lv_m2 lv_m3 lv_m4.
+      ENDIF.
+    ENDIF.
 
 *   Reiniciar datos de este fichero
     REFRESH gt_csv_data.
@@ -1024,7 +1050,7 @@ FORM frm_procesar_servidor.
 
   ENDLOOP.
 
-* ---- 4. Resumen final al spool ----
+* ---- 4. Resumen final al spool y al log del Job ----
   WRITE: / '================================================'.
   WRITE: / 'RESUMEN FINAL'.
   WRITE: / '================================================'.
@@ -1033,6 +1059,16 @@ FORM frm_procesar_servidor.
   WRITE: / 'OK:                ', gv_g_ok.
   WRITE: / 'Warnings:          ', gv_g_warning.
   WRITE: / 'Errores:           ', gv_g_error.
+
+  IF sy-batch IS NOT INITIAL.
+    lv_msg = |FIN: { gv_g_ficheros } fich., { gv_g_total } reg. (OK: { gv_g_ok }, Err: { gv_g_error })|.
+    lv_padded = lv_msg.
+    lv_m1 = lv_padded(50).
+    lv_m2 = lv_padded+50(50).
+    lv_m3 = lv_padded+100(50).
+    lv_m4 = lv_padded+150(50).
+    MESSAGE i398(00) WITH lv_m1 lv_m2 lv_m3 lv_m4.
+  ENDIF.
 
   IF gv_g_total > 0.
     DATA: lv_pct TYPE p DECIMALS 1.

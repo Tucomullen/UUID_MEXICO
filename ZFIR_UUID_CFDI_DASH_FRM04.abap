@@ -37,20 +37,29 @@ FORM frm_build_alv_month.
     ls_fcat-fieldname = &1.
     ls_fcat-coltext   = &2.
     ls_fcat-outputlen = &3.
+    ls_fcat-just      = &4.
+    ls_fcat-col_opt   = 'X'.
     APPEND ls_fcat TO lt_fcat.
   END-OF-DEFINITION.
 
-  add_fc 'GJAHR'    'Ejercicio' 6.
-  add_fc 'MONAT'    'Mes'       4.
-  add_fc 'PERIODO'  'Período'   8.
-  add_fc 'TOT_REG'  'Total'     8.
-  add_fc 'TOT_OK'   'OK'        8.
-  add_fc 'TOT_WARN' 'Warning'   8.
-  add_fc 'TOT_ERR'  'Error'     8.
+  add_fc 'BUKRS'  'Sociedad'   6  'L'.
+  add_fc 'GJAHR'  'Ejercicio'  6  'C'.
+  add_fc 'M01'    'Ene'        4  'C'.
+  add_fc 'M02'    'Feb'        4  'C'.
+  add_fc 'M03'    'Mar'        4  'C'.
+  add_fc 'M04'    'Abr'        4  'C'.
+  add_fc 'M05'    'May'        4  'C'.
+  add_fc 'M06'    'Jun'        4  'C'.
+  add_fc 'M07'    'Jul'        4  'C'.
+  add_fc 'M08'    'Ago'        4  'C'.
+  add_fc 'M09'    'Sep'        4  'C'.
+  add_fc 'M10'    'Oct'        4  'C'.
+  add_fc 'M11'    'Nov'        4  'C'.
+  add_fc 'M12'    'Dic'        4  'C'.
 
   go_alv_month->set_table_for_first_display(
     EXPORTING is_layout       = ls_layo
-    CHANGING  it_outtab       = gt_by_month
+    CHANGING  it_outtab       = gt_continuity
               it_fieldcatalog = lt_fcat ).
 
 ENDFORM.

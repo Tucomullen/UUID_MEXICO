@@ -57,6 +57,17 @@ FORM frm_render_html_kpi.
     CREATE OBJECT go_html_kpi
       EXPORTING
         parent = go_cont_t1_t.
+
+    " Registrar manejador de eventos para clics en HTML
+    SET HANDLER go_event_receiver->on_sapevent FOR go_html_kpi.
+
+    DATA: lt_events_h TYPE cntl_simple_events,
+          ls_event_h  TYPE cntl_simple_event.
+
+    ls_event_h-eventid = cl_gui_html_viewer=>m_id_sapevent.
+    ls_event_h-appl_event = 'X'.
+    APPEND ls_event_h TO lt_events_h.
+    go_html_kpi->set_registered_events( events = lt_events_h ).
   ENDIF.
 
   " Lógica de color general
@@ -82,31 +93,41 @@ FORM frm_render_html_kpi.
     lv_msg    = 'No hay datos cargados para los filtros seleccionados.'.
   ENDIF.
 
+  " Definiciones de tooltips para ayuda contextual
+  DATA: lv_t_total TYPE string VALUE 'Total de líneas de documentos contables SAP afectados.',
+        lv_t_ok    TYPE string VALUE 'Documentos donde el UUID se asignó correctamente.',
+        lv_t_warn  TYPE string VALUE 'Documentos con UUID previo diferente o que requieren revisión.',
+        lv_t_err   TYPE string VALUE 'Registros con errores técnicos o documento SAP no localizado.',
+        lv_t_pct   TYPE string VALUE 'Porcentaje de registros exitosos sobre el total procesado.',
+        lv_t_uuid  TYPE string VALUE 'Contador de facturas fiscales reales (CFDI). Útil para control de Intercompanies.'.
+
   " Construcción del HTML con CSS inline para máximo impacto
-  lv_html = 
+  lv_html =
     '<html><head><style>' &&
     'body { font-family: "Segoe UI", Arial, sans-serif; background: #fafafa; margin: 15px; }' &&
-    '.dash-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }' &&
-    '.dash-title { font-size: 24px; font-weight: bold; color: #333; }' &&
-    '.status-banner { padding: 12px 20px; border-radius: 8px; border-left: 5px solid ' && lv_color && '; background: ' && lv_bg && '; margin-bottom: 25px; }' &&
-    '.status-title { font-weight: bold; font-size: 16px; color: ' && lv_color && '; }' &&
-    '.cards-container { display: flex; gap: 15px; }' &&
-    '.card { flex: 1; background: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border: 1px solid #eee; text-align: center; }' &&
-    '.card-label { font-size: 11px; text-transform: uppercase; color: #888; letter-spacing: 1px; margin-bottom: 8px; }' &&
-    '.card-value { font-size: 28px; font-weight: bold; color: #222; }' &&
+    '.dash-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }' &&
+    '.dash-title { font-size: 22px; font-weight: bold; color: #333; }' &&
+    '.status-banner { padding: 10px 18px; border-radius: 8px; border-left: 5px solid ' && lv_color && '; background: ' && lv_bg && '; margin-bottom: 20px; }' &&
+    '.status-title { font-weight: bold; font-size: 15px; color: ' && lv_color && '; text-transform:uppercase; }' &&
+    '.cards-container { display: flex; gap: 12px; }' &&
+    '.card { flex: 1; background: white; padding: 12px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border: 1px solid #eee; text-align: center; text-decoration: none; transition: all 0.2s ease; }' &&
+    '.card:hover { transform: translateY(-3px); box-shadow: 0 5px 12px rgba(0,0,0,0.1); border-color: #ccc; }' &&
+    '.card-click { cursor: pointer; }' &&
+    '.card-label { font-size: 10px; text-transform: uppercase; color: #888; font-weight: bold; letter-spacing: 0.5px; margin-bottom: 6px; }' &&
+    '.card-value { font-size: 26px; font-weight: bold; color: #222; }' &&
     '.card-ok { border-bottom: 4px solid #4caf50; } .card-err { border-bottom: 4px solid #f44336; }' &&
-    '.card-warn { border-bottom: 4px solid #ffeb3b; } .card-blue { border-bottom: 4px solid #2196f3; }' &&
+    '.card-warn { border-bottom: 4px solid #fbc02d; } .card-blue { border-bottom: 4px solid #2196f3; }' &&
     '</style></head><body>' &&
     '<div class="dash-header"><div class="dash-title">Resumen Ejecutivo UUID</div></div>' &&
     '<div class="status-banner"><div class="status-title">ESTADO: ' && lv_status && '</div>' &&
-    '<div style="font-size: 14px; color: #555;">' && lv_msg && '</div></div>' &&
+    '<div style="font-size: 13px; color: #555;">' && lv_msg && '</div></div>' &&
     '<div class="cards-container">' &&
-    '<div class="card card-blue"><div class="card-label">Total Procesados</div><div class="card-value">' && |{ gs_kpi-tot_reg }| && '</div></div>' &&
-    '<div class="card card-ok"><div class="card-label">Correctos (OK)</div><div class="card-value" style="color:#2e7d32">' && |{ gs_kpi-tot_ok }| && '</div></div>' &&
-    '<div class="card card-warn"><div class="card-label">Con Warning</div><div class="card-value" style="color:#f9a825">' && |{ gs_kpi-tot_warn }| && '</div></div>' &&
-    '<div class="card card-err"><div class="card-label">Con Error</div><div class="card-value" style="color:#c62828">' && |{ gs_kpi-tot_err }| && '</div></div>' &&
-    '<div class="card card-blue"><div class="card-label">% Éxito</div><div class="card-value">' && |{ gs_kpi-pct_ok }%| && '</div></div>' &&
-    '<div class="card card-blue"><div class="card-label">UUIDs Únicos</div><div class="card-value">' && |{ gs_kpi-num_uuid }| && '</div></div>' &&
+    '<div class="card card-blue" title="' && lv_t_total && '"><div class="card-label">Total Procesados</div><div class="card-value">' && |{ gs_kpi-tot_reg }| && '</div></div>' &&
+    '<a href="SAPEVENT:DRILLDOWN_OK" class="card card-ok card-click" title="' && lv_t_ok && '"><div class="card-label">Correctos (OK)</div><div class="card-value" style="color:#2e7d32">' && |{ gs_kpi-tot_ok }| && '</div></a>' &&
+    '<a href="SAPEVENT:DRILLDOWN_WARN" class="card card-warn card-click" title="' && lv_t_warn && '"><div class="card-label">Con Warning</div><div class="card-value" style="color:#f9a825">' && |{ gs_kpi-tot_warn }| && '</div></a>' &&
+    '<a href="SAPEVENT:DRILLDOWN_ERR" class="card card-err card-click" title="' && lv_t_err && '"><div class="card-label">Con Error</div><div class="card-value" style="color:#c62828">' && |{ gs_kpi-tot_err }| && '</div></a>' &&
+    '<div class="card card-blue" title="' && lv_t_pct && '"><div class="card-label">% Éxito</div><div class="card-value">' && |{ gs_kpi-pct_ok }%| && '</div></div>' &&
+    '<div class="card card-blue" title="' && lv_t_uuid && '"><div class="card-label">UUIDs Únicos</div><div class="card-value">' && |{ gs_kpi-num_uuid }| && '</div></div>' &&
     '</div></body></html>'.
 
   " Convertir STRING a tabla W3HTML
@@ -176,14 +197,15 @@ FORM frm_render_alv_resumen.
 
     " Fieldcat minimalista
     CLEAR ls_fcat.
-    ls_fcat-fieldname = 'ICON'.    ls_fcat-scrtext_s = 'Est.'. ls_fcat-icon = 'X'. APPEND ls_fcat TO lt_fcat.
-    ls_fcat-fieldname = 'STATUS'.  ls_fcat-scrtext_s = 'Estado'. ls_fcat-outputlen = 10. APPEND ls_fcat TO lt_fcat.
-    ls_fcat-fieldname = 'COUNT'.   ls_fcat-scrtext_s = 'Cantidad'. ls_fcat-do_sum = 'X'. APPEND ls_fcat TO lt_fcat.
-    ls_fcat-fieldname = 'PERCENT'. ls_fcat-scrtext_s = '%'. ls_fcat-decimals_o = 1. APPEND ls_fcat TO lt_fcat.
+    ls_fcat-fieldname = 'ICON'.    ls_fcat-scrtext_s = 'Est.'. ls_fcat-icon = 'X'. ls_fcat-col_opt = 'X'. APPEND ls_fcat TO lt_fcat.
+    ls_fcat-fieldname = 'STATUS'.  ls_fcat-scrtext_s = 'Estado'. ls_fcat-outputlen = 10. ls_fcat-col_opt = 'X'. APPEND ls_fcat TO lt_fcat.
+    ls_fcat-fieldname = 'COUNT'.   ls_fcat-scrtext_s = 'Cantidad'. ls_fcat-do_sum = 'X'. ls_fcat-col_opt = 'X'. APPEND ls_fcat TO lt_fcat.
+    ls_fcat-fieldname = 'PERCENT'. ls_fcat-scrtext_s = '%'. ls_fcat-decimals_o = 1. ls_fcat-col_opt = 'X'. APPEND ls_fcat TO lt_fcat.
 
     ls_layout-grid_title = 'Resumen por Estado'.
     ls_layout-smalltitle = 'X'.
     ls_layout-no_toolbar = 'X'.
+    ls_layout-cwidth_opt = 'X'.
     ls_layout-info_fname = 'COLOR'.
 
     go_alv_kpi->set_table_for_first_display(
@@ -220,10 +242,10 @@ FORM frm_render_alv_actividad.
 
     " Fieldcat
     CLEAR ls_fcat.
-    ls_fcat-fieldname = 'BUKRS'.   ls_fcat-scrtext_s = 'Soc.'. APPEND ls_fcat TO lt_fcat.
-    ls_fcat-fieldname = 'BUTXT'.   ls_fcat-scrtext_s = 'Descripción'. APPEND ls_fcat TO lt_fcat.
-    ls_fcat-fieldname = 'TOT_REG'. ls_fcat-scrtext_s = 'Total'. APPEND ls_fcat TO lt_fcat.
-    ls_fcat-fieldname = 'PCT_OK'.  ls_fcat-scrtext_s = '% OK'. ls_fcat-decimals_o = 1. APPEND ls_fcat TO lt_fcat.
+    ls_fcat-fieldname = 'BUKRS'.   ls_fcat-scrtext_s = 'Soc.'. ls_fcat-col_opt = 'X'. APPEND ls_fcat TO lt_fcat.
+    ls_fcat-fieldname = 'BUTXT'.   ls_fcat-scrtext_s = 'Descripción'. ls_fcat-col_opt = 'X'. APPEND ls_fcat TO lt_fcat.
+    ls_fcat-fieldname = 'TOT_REG'. ls_fcat-scrtext_s = 'Total'. ls_fcat-col_opt = 'X'. APPEND ls_fcat TO lt_fcat.
+    ls_fcat-fieldname = 'PCT_OK'.  ls_fcat-scrtext_s = '% OK'. ls_fcat-decimals_o = 1. ls_fcat-col_opt = 'X'. APPEND ls_fcat TO lt_fcat.
 
     ls_layout-grid_title = 'Top Sociedades con Actividad'.
     ls_layout-smalltitle = 'X'.

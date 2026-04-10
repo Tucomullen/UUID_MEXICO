@@ -13,6 +13,7 @@ FORM frm_cargar_datos.
   PERFORM frm_agregar_por_bukrs.
   PERFORM frm_agregar_por_mes.
   PERFORM frm_agregar_errores.
+  PERFORM frm_construir_continuidad.
   gt_detail = gt_zlog_raw.
 ENDFORM.
 
@@ -196,6 +197,109 @@ FORM frm_agregar_por_mes.
   ENDLOOP.
 
   SORT gt_by_month BY gjahr monat.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*& Form FRM_CONSTRUIR_CONTINUIDAD
+*&---------------------------------------------------------------------*
+*& Genera la matriz de Gaps (Sociedad x Año x Mes)
+*&---------------------------------------------------------------------*
+FORM frm_construir_continuidad.
+
+  DATA: lv_anio_actual TYPE gjahr,
+        lv_anio        TYPE gjahr,
+        lt_exec        TYPE TABLE OF ztt_uuid_exec,
+        ls_exec        TYPE ztt_uuid_exec,
+        ls_rb          TYPE gty_rfc_bukrs,
+        lv_month       TYPE monat,
+        lv_year_short  TYPE char2,
+        lv_pos         TYPE i,
+        lv_off         TYPE i,
+        lv_fname       TYPE string.
+
+  FIELD-SYMBOLS: <fs_c>  TYPE gty_continuity,
+                 <fs_m>  TYPE any,
+                 <fs_ce> TYPE gty_continuity,
+                 <fs_me> TYPE any.
+
+  REFRESH: gt_continuity, gt_rfc_bukrs.
+
+  " 1. Obtener mapeo RFC -> Sociedad (T001Z)
+  SELECT paval AS rfc, bukrs
+    FROM t001z
+    INTO TABLE @gt_rfc_bukrs
+    WHERE party = 'MX_RFC'.
+
+  IF gt_rfc_bukrs IS INITIAL. RETURN. ENDIF.
+
+  " 2. Inicializar matriz: Sociedades x Años (2018 - Actual)
+  lv_anio_actual = sy-datum(4).
+  lv_anio = '2018'.
+
+  WHILE lv_anio <= lv_anio_actual.
+    LOOP AT gt_rfc_bukrs INTO ls_rb.
+      CLEAR gs_continuity.
+      gs_continuity-bukrs = ls_rb-bukrs.
+      gs_continuity-gjahr = lv_anio.
+      " Inicializar con Rojo (Sin Carga / No encontrado)
+      gs_continuity-m01 = gs_continuity-m02 = gs_continuity-m03 =
+      gs_continuity-m04 = gs_continuity-m05 = gs_continuity-m06 =
+      gs_continuity-m07 = gs_continuity-m08 = gs_continuity-m09 =
+      gs_continuity-m10 = gs_continuity-m11 = gs_continuity-m12 = '@0A@'.
+      APPEND gs_continuity TO gt_continuity.
+    ENDLOOP.
+    lv_anio = lv_anio + 1.
+  ENDWHILE.
+
+  " 3. Marcar con VERDE (Cargado OK) basado en los logs existentes
+  LOOP AT gt_zlog_raw INTO DATA(ls_log).
+    READ TABLE gt_continuity ASSIGNING <fs_c>
+      WITH KEY bukrs = ls_log-bukrs gjahr = ls_log-gjahr.
+    IF sy-subrc = 0.
+      DATA(lv_comp) = |M{ ls_log-monat }|.
+      ASSIGN COMPONENT lv_comp OF STRUCTURE <fs_c> TO <fs_m>.
+      IF sy-subrc = 0.
+        <fs_m> = '@08@'. " Icono Verde
+      ENDIF.
+    ENDIF.
+  ENDLOOP.
+
+  " 4. Marcar con AMARILLO (Fichero visto pero sin registros en Log)
+  " Basado en ZTT_UUID_EXEC y patrón de nombre <RFC>_..._MMYY.csv
+  SELECT * FROM ztt_uuid_exec INTO TABLE lt_exec.
+
+  LOOP AT lt_exec INTO ls_exec.
+    lv_fname = ls_exec-fichero.
+    TRANSLATE lv_fname TO UPPER CASE.
+
+    LOOP AT gt_rfc_bukrs INTO ls_rb.
+      IF lv_fname CP |*{ ls_rb-rfc }*|.
+        " Extraer MMYY de los últimos caracteres (antes del .csv)
+        " Ejemplo: ..._0118.csv (posiciones finales)
+        lv_pos = strlen( lv_fname ) - 8.
+        IF lv_pos > 0 AND lv_fname+lv_pos(1) = '_'.
+          lv_off = lv_pos + 1.
+          lv_month      = lv_fname+lv_off(2).
+          lv_off = lv_pos + 3.
+          lv_year_short = lv_fname+lv_off(2).
+          lv_anio       = |20{ lv_year_short }|.
+
+          READ TABLE gt_continuity ASSIGNING <fs_ce>
+            WITH KEY bukrs = ls_rb-bukrs gjahr = lv_anio.
+          IF sy-subrc = 0.
+            lv_comp = |M{ lv_month }|.
+            ASSIGN COMPONENT lv_comp OF STRUCTURE <fs_ce> TO <fs_me>.
+            IF sy-subrc = 0 AND <fs_me> = '@0A@'. " Solo si no está verde ya
+               <fs_me> = '@09@'. " Icono Amarillo (Intento detectado)
+            ENDIF.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+  ENDLOOP.
+
+  SORT gt_continuity BY bukrs gjahr.
 
 ENDFORM.
 

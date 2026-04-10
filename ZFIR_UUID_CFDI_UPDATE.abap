@@ -41,6 +41,16 @@ INCLUDE zfir_uuid_cfdi_update_frm02. " Grabación UUID y salida ALV
 *   - AT SELECTION-SCREEN         → frm_validar_seleccion
 
 **********************************************************************
+** INICIALIZACIÓN                                                   **
+**********************************************************************
+INITIALIZATION.
+  g_des_t = 'NAMING CONVENTION (OBLIGATORIO PARA DASHBOARD)'.
+  g_des_1 = 'Para que el Reporte de Continuidad identifique los periodos sin registros,'.
+  g_des_2 = 'los archivos deben terminar en _MMYY.csv (Ej: _0126.csv para Ene 2026).'.
+  g_des_3 = 'El RFC debe estar al inicio: <RFC>_Clientes_Ingreso_0126.csv'.
+  g_des_4 = 'Sin este patrón, el Dashboard marcará el mes como "Sin Carga".'.
+
+**********************************************************************
 ** EJECUCIÓN PRINCIPAL                                              **
 **********************************************************************
 START-OF-SELECTION.
