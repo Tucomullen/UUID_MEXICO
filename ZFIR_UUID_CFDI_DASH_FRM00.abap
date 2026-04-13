@@ -6,33 +6,40 @@
 
 CLASS lcl_event_receiver IMPLEMENTATION.
   METHOD on_function_selected.
-    gv_tab_key = fcode.
-    " Si se cambia de pestaña manualmente, limpiar filtro de drill-down
-    IF fcode CP 'TAB*'.
+    " Si el usuario hace clic MANUAL en una pestaña distinta a TAB5,
+    " limpiar el filtro de drill-down. Si hace clic en TAB5 manualmente
+    " (sin venir de drill-down), también limpiar para mostrar todo.
+    " Si viene de drill-down (gv_drilldown_status ya tiene valor),
+    " NO limpiar porque el on_sapevent ya lo puso.
+    IF fcode CP 'TAB*' AND fcode <> 'TAB5'.
+      CLEAR gv_drilldown_status.
+    ELSEIF fcode = 'TAB5' AND gv_drilldown_status IS INITIAL.
+      " Clic manual en Tab5 sin drill-down previo → mostrar todo
       CLEAR gv_drilldown_status.
     ENDIF.
-    " Disparar la lógica de renderizar tab
+
+    gv_tab_key = fcode.
     PERFORM frm_render_active_tab.
   ENDMETHOD.
 
   METHOD on_sapevent.
     " Manejar clics desde el HTML (KPI cards)
+    " IMPORTANTE: No renderizar aquí directamente. El on_sapevent se ejecuta
+    " dentro del dispatch del Control Framework, y cualquier destrucción/creación
+    " de controles GUI no se repinta hasta el siguiente PBO. La solución es
+    " guardar el estado deseado y forzar un nuevo ciclo PAI completo con
+    " set_new_ok_code, donde el MODULE user_command_0100 ejecutará el render.
     DATA: lv_action TYPE string.
     lv_action = action.
-    
     TRANSLATE lv_action TO UPPER CASE.
 
     CASE lv_action.
       WHEN 'DRILLDOWN_OK' OR 'DRILLDOWN_WARN' OR 'DRILLDOWN_ERR'.
+        " 1. Guardar estado de navegación
         gv_drilldown_status = lv_action.
         gv_tab_key          = 'TAB5'.
-        
-        " Renderizar el nuevo contenido
-        PERFORM frm_render_active_tab.
-        
-        " CRUCIAL: Forzar a la pantalla (Dynpro 0100) a refrescarse 
-        " enviando un OK_CODE ficticio, lo que desencadena un PAI->PBO completo.
-        cl_gui_cfw=>set_new_ok_code( new_code = 'DUMMY' ).
+        " 2. Forzar un nuevo roundtrip PAI→PBO para que la GUI se repinte
+        cl_gui_cfw=>set_new_ok_code( new_code = 'DRILL_NAV' ).
     ENDCASE.
   ENDMETHOD.
 ENDCLASS.
@@ -66,6 +73,12 @@ MODULE user_command_0100 INPUT.
     WHEN 'BACK' OR 'EXIT' OR 'CANC'.
       PERFORM frm_free_gui.
       LEAVE TO SCREEN 0.
+    WHEN 'DRILL_NAV'.
+      " Viene de on_sapevent (clic en KPI card HTML).
+      " gv_drilldown_status y gv_tab_key ya están puestos.
+      " Ahora sí renderizamos en el flujo normal PAI donde el
+      " repintado de la GUI funciona correctamente.
+      PERFORM frm_render_active_tab.
   ENDCASE.
 ENDMODULE.
 

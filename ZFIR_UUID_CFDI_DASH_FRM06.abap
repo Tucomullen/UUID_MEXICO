@@ -35,41 +35,51 @@ DATA: go_evt_handler TYPE REF TO lcl_evt.
 *&---------------------------------------------------------------------*
 FORM frm_build_tab5.
 
-  DATA: lt_fcat TYPE lvc_t_fcat,
-        ls_fcat TYPE lvc_s_fcat,
-        ls_layo TYPE lvc_s_layo,
-        lv_status TYPE char4.
+  DATA: lt_fcat   TYPE lvc_t_fcat,
+        ls_fcat   TYPE lvc_s_fcat,
+        ls_layo   TYPE lvc_s_layo,
+        lv_status TYPE char4,
+        lv_title  TYPE string.
 
-  " 1. Preparar datos: Partir siempre del total y filtrar físicamente
+  " 1. Preparar datos: Siempre partir del total (gt_zlog_raw)
   gt_detail = gt_zlog_raw.
 
+  " 2. Aplicar filtro si viene de drill-down desde KPI card
   IF gv_drilldown_status IS NOT INITIAL.
     CASE gv_drilldown_status.
-      WHEN 'DRILLDOWN_OK'.   lv_status = '@08@'.
-      WHEN 'DRILLDOWN_WARN'. lv_status = '@09@'.
-      WHEN 'DRILLDOWN_ERR'.  lv_status = '@0A@'.
+      WHEN 'DRILLDOWN_OK'.
+        lv_status = '@08@'.
+        lv_title  = 'Detalle: Registros Correctos (OK)'.
+      WHEN 'DRILLDOWN_WARN'.
+        lv_status = '@09@'.
+        lv_title  = 'Detalle: Registros con Warning'.
+      WHEN 'DRILLDOWN_ERR'.
+        lv_status = '@0A@'.
+        lv_title  = 'Detalle: Registros con Error'.
     ENDCASE.
-    
+
     IF lv_status IS NOT INITIAL.
       DELETE gt_detail WHERE icon_status <> lv_status.
     ENDIF.
+  ELSE.
+    lv_title = 'Detalle Completo de Registros'.
   ENDIF.
 
-  " 2. Preparar Layout y Fieldcatalog
+  " 3. Preparar Layout
   ls_layo-zebra      = 'X'.
   ls_layo-cwidth_opt = 'X'.
-  ls_layo-grid_title = 'Detalle Completo de Registros'.
+  ls_layo-grid_title = lv_title.
 
-  IF gv_drilldown_status IS NOT INITIAL.
-    ls_layo-grid_title = |Detalle Filtrado por Estado: { gv_drilldown_status }|.
-  ENDIF.
-
+  " 4. Fieldcatalog
   DEFINE add_fc.
     CLEAR ls_fcat.
     ls_fcat-fieldname = &1.
     ls_fcat-coltext   = &2.
     ls_fcat-outputlen = &3.
     ls_fcat-col_opt   = 'X'.
+    IF &1 = 'ICON_STATUS'.
+      ls_fcat-icon = 'X'.
+    ENDIF.
     APPEND ls_fcat TO lt_fcat.
   END-OF-DEFINITION.
 
@@ -95,21 +105,18 @@ FORM frm_build_tab5.
   add_fc 'FICHERO'      'Fichero'     30.
   add_fc 'TEST_MODE'    'Simulación'   1.
 
-  " 3. Crear o Refrescar ALV (siempre re-renderizamos para asegurar el filtro físico)
-  IF go_alv_detail IS INITIAL.
-    CREATE OBJECT go_alv_detail
-      EXPORTING i_parent = go_cont_main.
+  " 5. Crear ALV nuevo (siempre se destruyó previamente en frm_free_active_tab)
+  "    No usar refresh: con filtro físico distinto hay que hacer set_table_for_first_display
+  CREATE OBJECT go_alv_detail
+    EXPORTING i_parent = go_cont_main.
 
-    " Registrar handler de doble clic
-    CREATE OBJECT go_evt_handler.
-    SET HANDLER go_evt_handler->on_dbl_click FOR go_alv_detail.
+  " Registrar handler de doble clic → FB03
+  CREATE OBJECT go_evt_handler.
+  SET HANDLER go_evt_handler->on_dbl_click FOR go_alv_detail.
 
-    go_alv_detail->set_table_for_first_display(
-      EXPORTING is_layout       = ls_layo
-      CHANGING  it_outtab       = gt_detail
-                it_fieldcatalog = lt_fcat ).
-  ELSE.
-    go_alv_detail->refresh_table_display( ).
-  ENDIF.
+  go_alv_detail->set_table_for_first_display(
+    EXPORTING is_layout       = ls_layo
+    CHANGING  it_outtab       = gt_detail
+              it_fieldcatalog = lt_fcat ).
 
 ENDFORM.
