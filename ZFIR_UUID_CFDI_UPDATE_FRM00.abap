@@ -660,8 +660,8 @@ FORM frm_convertir_total
 
   DATA: lv_total_str TYPE string,
         lv_total_dec TYPE p DECIMALS 2,
-        lv_total_raw TYPE p DECIMALS 0,  " Entero sin decimales (hasta 15 dígitos)
-        lv_total_6   TYPE p DECIMALS 6.
+        lv_total_raw TYPE p LENGTH 9 DECIMALS 0,  " Entero sin decimales (hasta 17 dígitos)
+        lv_total_6   TYPE p LENGTH 9 DECIMALS 6.  " 11 enteros + 6 decimales (hasta 17 dígitos)
 
   CLEAR pv_total_num.
   lv_total_str = pv_total_str.
@@ -699,6 +699,39 @@ FORM frm_convertir_total
   ENDIF.
 
 ENDFORM.                    " FRM_CONVERTIR_TOTAL
+
+*&=====================================================================*
+*&  CACHÉ DE TABLAS MAESTRAS                                          *
+*&=====================================================================*
+
+*&---------------------------------------------------------------------*
+*& Form FRM_INIT_CACHE
+*&---------------------------------------------------------------------*
+*& Precarga en memoria las tablas maestras que se consultan por cada
+*& registro del CSV, evitando miles de SELECT SINGLE individuales.
+*&   - gt_t001z_cache: toda la asignación RFC -> BUKRS (PARTY = MX_RFC)
+*&   - gt_lfa1_cache / gt_kna1_cache: se llenan bajo demanda (lazy)
+*&---------------------------------------------------------------------*
+FORM frm_init_cache.
+
+  DATA: ls_t001z TYPE gty_t001z_cache.
+
+* Cargar TODOS los registros de T001Z con PARTY = MX_RFC en un solo SELECT
+  REFRESH gt_t001z_cache.
+  SELECT paval bukrs
+    FROM t001z
+    INTO CORRESPONDING FIELDS OF TABLE gt_t001z_cache
+    WHERE party = gc_party.
+
+  IF sy-subrc <> 0.
+    WRITE: / 'Aviso: No se encontraron entradas en T001Z para PARTY =', gc_party.
+  ENDIF.
+
+* Las cachés de LFA1 y KNA1 se llenan la primera vez que se consulta cada RFC
+  REFRESH gt_lfa1_cache.
+  REFRESH gt_kna1_cache.
+
+ENDFORM.                    " FRM_INIT_CACHE
 
 *&=====================================================================*
 *&  NUEVOS FORMS PARA MODO SERVIDOR (AL11)                            *

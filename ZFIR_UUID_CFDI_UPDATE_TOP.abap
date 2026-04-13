@@ -110,6 +110,30 @@ TYPES: BEGIN OF gty_server_file,
 ** DATOS GLOBALES                                                   **
 **********************************************************************
 
+* Caché de T001Z: RFC -> BUKRS (cargada una vez al inicio)
+TYPES: BEGIN OF gty_t001z_cache,
+         paval TYPE t001z-paval,   " RFC (valor del party)
+         bukrs TYPE t001z-bukrs,   " Sociedad
+       END OF gty_t001z_cache.
+DATA: gt_t001z_cache TYPE HASHED TABLE OF gty_t001z_cache
+                     WITH UNIQUE KEY paval.
+
+* Caché de LFA1: RFC_EMISOR -> LIFNR (lazy-loading)
+TYPES: BEGIN OF gty_lfa1_cache,
+         stcd1 TYPE lfa1-stcd1,   " RFC del proveedor
+         lifnr TYPE lfa1-lifnr,   " Número de proveedor (vacío = no existe)
+       END OF gty_lfa1_cache.
+DATA: gt_lfa1_cache TYPE HASHED TABLE OF gty_lfa1_cache
+                    WITH UNIQUE KEY stcd1.
+
+* Caché de KNA1: RFC_RECEPTOR -> KUNNR (lazy-loading)
+TYPES: BEGIN OF gty_kna1_cache,
+         stcd1 TYPE kna1-stcd1,   " RFC del cliente
+         kunnr TYPE kna1-kunnr,   " Número de cliente (vacío = no existe)
+       END OF gty_kna1_cache.
+DATA: gt_kna1_cache TYPE HASHED TABLE OF gty_kna1_cache
+                    WITH UNIQUE KEY stcd1.
+
 * Tabla interna con registros del CSV
 DATA: gt_csv_data TYPE TABLE OF gty_csv_data,
       gs_csv_data TYPE gty_csv_data.

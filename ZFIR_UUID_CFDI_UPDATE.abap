@@ -55,6 +55,9 @@ INITIALIZATION.
 **********************************************************************
 START-OF-SELECTION.
 
+* Cargar cachés de tablas maestras (T001Z, LFA1, KNA1) una sola vez
+  PERFORM frm_init_cache.
+
   IF p_serv = 'X'.
 *   =====================================================
 *   MODO SERVIDOR (AL11): procesamiento recursivo

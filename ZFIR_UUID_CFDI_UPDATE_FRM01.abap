@@ -29,23 +29,22 @@ FORM frm_tipo_factura
   CLEAR: pv_tipo_factura, pv_emisor, pv_receptor, pv_error,
          lv_emisor_grupo_mx, lv_receptor_grupo_mx.
 
-* Buscar sociedad emisora en T001Z (mapeo RFC -> BUKRS)
-  SELECT SINGLE bukrs
-    FROM t001z
-    INTO lv_bukrs_emisor
-    WHERE party = gc_party
-      AND paval = ps_datos-rfc_emisor.
+* Buscar sociedad emisora en caché T001Z (evita SELECT SINGLE por cada registro)
+  DATA: ls_t001z_e TYPE gty_t001z_cache,
+        ls_t001z_r TYPE gty_t001z_cache.
+
+  READ TABLE gt_t001z_cache INTO ls_t001z_e
+    WITH TABLE KEY paval = ps_datos-rfc_emisor.
   IF sy-subrc = 0.
+    lv_bukrs_emisor    = ls_t001z_e-bukrs.
     lv_emisor_grupo_mx = 'X'.
   ENDIF.
 
-* Buscar sociedad receptora en T001Z
-  SELECT SINGLE bukrs
-    FROM t001z
-    INTO lv_bukrs_receptor
-    WHERE party = gc_party
-      AND paval = ps_datos-rfc_receptor.
+* Buscar sociedad receptora en caché T001Z
+  READ TABLE gt_t001z_cache INTO ls_t001z_r
+    WITH TABLE KEY paval = ps_datos-rfc_receptor.
   IF sy-subrc = 0.
+    lv_bukrs_receptor    = ls_t001z_r-bukrs.
     lv_receptor_grupo_mx = 'X'.
   ENDIF.
 
@@ -61,11 +60,25 @@ FORM frm_tipo_factura
 *   ---- COMPRA ----
 *   Emisor es proveedor externo, receptor es sociedad Acciona
     pv_tipo_factura = gc_tipo_compra.
-*   Buscar LIFNR del proveedor por RFC en LFA1
-    SELECT SINGLE lifnr
-      FROM lfa1
-      INTO lv_lifnr
-      WHERE stcd1 = ps_datos-rfc_emisor.
+*   Buscar LIFNR del proveedor por RFC en caché LFA1 (lazy-loading)
+    DATA: ls_lfa1_c TYPE gty_lfa1_cache.
+    READ TABLE gt_lfa1_cache INTO ls_lfa1_c
+      WITH TABLE KEY stcd1 = ps_datos-rfc_emisor.
+    IF sy-subrc <> 0.
+*     Cache miss: consultar BD y guardar resultado (incluso si no existe)
+      SELECT SINGLE lifnr
+        FROM lfa1
+        INTO ls_lfa1_c-lifnr
+        WHERE stcd1 = ps_datos-rfc_emisor.
+      ls_lfa1_c-stcd1 = ps_datos-rfc_emisor.
+      INSERT ls_lfa1_c INTO TABLE gt_lfa1_cache.
+    ENDIF.
+    lv_lifnr = ls_lfa1_c-lifnr.
+    IF lv_lifnr IS INITIAL.
+      sy-subrc = 4.  " Simular "no encontrado" para la lógica siguiente
+    ELSE.
+      sy-subrc = 0.
+    ENDIF.
     IF sy-subrc <> 0.
       pv_error = 'X'.
       CLEAR gs_log.
@@ -103,11 +116,25 @@ FORM frm_tipo_factura
 *   ---- VENTA ----
 *   Emisor es sociedad Acciona, receptor es cliente externo
     pv_tipo_factura = gc_tipo_venta.
-*   Buscar KUNNR del cliente por RFC en KNA1
-    SELECT SINGLE kunnr                                  "#EC CI_NOFIELD
-      FROM kna1
-      INTO lv_kunnr
-      WHERE stcd1 = ps_datos-rfc_receptor.
+*   Buscar KUNNR del cliente por RFC en caché KNA1 (lazy-loading)
+    DATA: ls_kna1_c TYPE gty_kna1_cache.
+    READ TABLE gt_kna1_cache INTO ls_kna1_c
+      WITH TABLE KEY stcd1 = ps_datos-rfc_receptor.
+    IF sy-subrc <> 0.
+*     Cache miss: consultar BD y guardar resultado (incluso si no existe)
+      SELECT SINGLE kunnr                                "#EC CI_NOFIELD
+        FROM kna1
+        INTO ls_kna1_c-kunnr
+        WHERE stcd1 = ps_datos-rfc_receptor.
+      ls_kna1_c-stcd1 = ps_datos-rfc_receptor.
+      INSERT ls_kna1_c INTO TABLE gt_kna1_cache.
+    ENDIF.
+    lv_kunnr = ls_kna1_c-kunnr.
+    IF lv_kunnr IS INITIAL.
+      sy-subrc = 4.  " Simular "no encontrado" para la lógica siguiente
+    ELSE.
+      sy-subrc = 0.
+    ENDIF.
     IF sy-subrc <> 0.
       pv_error = 'X'.
       CLEAR gs_log.
