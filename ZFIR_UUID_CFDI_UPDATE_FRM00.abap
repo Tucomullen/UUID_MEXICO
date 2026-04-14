@@ -714,16 +714,22 @@ ENDFORM.                    " FRM_CONVERTIR_TOTAL
 *&---------------------------------------------------------------------*
 FORM frm_init_cache.
 
-  DATA: ls_t001z TYPE gty_t001z_cache.
+  DATA: ls_t001z TYPE gty_t001z_cache,
+        lt_t001z_temp TYPE TABLE OF gty_t001z_cache.
 
 * Cargar TODOS los registros de T001Z con PARTY = MX_RFC en un solo SELECT
   REFRESH gt_t001z_cache.
   SELECT paval bukrs
     FROM t001z
-    INTO CORRESPONDING FIELDS OF TABLE gt_t001z_cache
+    INTO CORRESPONDING FIELDS OF TABLE lt_t001z_temp
     WHERE party = gc_party.
 
-  IF sy-subrc <> 0.
+  IF sy-subrc = 0.
+    LOOP AT lt_t001z_temp INTO ls_t001z.
+*     INSERT a tabla HASHED UNIQUE KEY ignora duplicados devolviendo sy-subrc = 4 (evita dump)
+      INSERT ls_t001z INTO TABLE gt_t001z_cache.
+    ENDLOOP.
+  ELSE.
     WRITE: / 'Aviso: No se encontraron entradas en T001Z para PARTY =', gc_party.
   ENDIF.
 
