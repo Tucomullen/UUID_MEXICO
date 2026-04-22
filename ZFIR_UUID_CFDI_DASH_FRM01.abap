@@ -40,6 +40,23 @@ FORM frm_leer_ztable.
     DELETE gt_zlog_raw WHERE test_mode <> ' '.
   ENDIF.
 
+  * ---> INICIO CHECK DE AUTORIZACIÓN POR SOCIEDAD FI <---
+  DATA: lv_tabix TYPE sytabix.
+  
+  LOOP AT gt_zlog_raw INTO DATA(ls_log).
+    lv_tabix = sy-tabix.
+    
+    AUTHORITY-CHECK OBJECT gc_auth_obj
+      ID 'BUKRS' FIELD ls_log-bukrs
+      ID 'ACTVT' FIELD gc_actvt_dis.
+      
+    IF sy-subrc <> 0.
+      " Si no tiene autorización para esta sociedad, lo eliminamos de la vista
+      DELETE gt_zlog_raw INDEX lv_tabix.
+    ENDIF.
+  ENDLOOP.
+  * ---> FIN CHECK DE AUTORIZACIÓN <---
+
   IF gt_zlog_raw IS INITIAL.
     REFRESH gt_zlog_raw.
   ENDIF.

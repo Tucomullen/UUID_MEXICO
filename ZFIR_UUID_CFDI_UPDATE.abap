@@ -30,6 +30,7 @@ INCLUDE zfir_uuid_cfdi_update_sel00. " Lógica pantalla selección (F4)
 INCLUDE zfir_uuid_cfdi_update_frm00. " Lectura/parseo CSV + servidor
 INCLUDE zfir_uuid_cfdi_update_frm01. " Localización documentos BKPF/BSEG
 INCLUDE zfir_uuid_cfdi_update_frm02. " Grabación UUID y salida ALV
+INCLUDE zfir_uuid_cfdi_update_frm03. " Reprocesamiento de errores/warnings
 
 **********************************************************************
 ** MATCH-CODE PARA FICHERO CSV (F4) — Definido en SEL00             **
@@ -57,6 +58,11 @@ START-OF-SELECTION.
 
 * Cargar cachés de tablas maestras (T001Z, LFA1, KNA1) una sola vez
   PERFORM frm_init_cache.
+
+  IF p_reproc = 'X'.
+    PERFORM frm_reprocesar_errores.
+    RETURN.
+  ENDIF.
 
   IF p_serv = 'X'.
 *   =====================================================

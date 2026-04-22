@@ -198,6 +198,7 @@ SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE text-b01.
   PARAMETERS: p_sdir TYPE char255         MODIF ID srv.     " Ruta servidor
   SELECTION-SCREEN SKIP 1.
   PARAMETERS: p_test AS CHECKBOX DEFAULT 'X'.               " Modo simulación
+  PARAMETERS: p_reproc AS CHECKBOX DEFAULT ' '.             " Reprocesar errores/warnings
 SELECTION-SCREEN END OF BLOCK b1.
 
 SELECTION-SCREEN BEGIN OF BLOCK b2 WITH FRAME TITLE text-b02.

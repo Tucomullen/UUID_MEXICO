@@ -9,6 +9,12 @@
 **********************************************************************
 TABLES: ztt_uuid_log.
 
+**********************************************************************
+** CONSTANTES GLOBALES                                              **
+**********************************************************************
+CONSTANTS:
+  gc_auth_obj  TYPE char20 VALUE 'F_BKPF_BUK', " Objeto de autorización FI
+  gc_actvt_dis TYPE char2  VALUE '03'.         " Actividad: Visualizar
 
 **********************************************************************
 ** TIPOS DE DATOS                                                   **
