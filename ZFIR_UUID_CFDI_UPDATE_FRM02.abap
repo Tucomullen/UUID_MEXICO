@@ -8,7 +8,7 @@
 *& Form FRM_EXISTE_UUID
 *&---------------------------------------------------------------------*
 FORM frm_existe_uuid
-  USING    value(pv_bukrs) TYPE char10
+  USING    value(pv_bukrs) TYPE bukrs
            value(pv_belnr) TYPE belnr_d
            value(pv_gjahr) TYPE gjahr
            value(pv_uuid_csv) TYPE char36
@@ -52,7 +52,7 @@ ENDFORM.
 *& Form FRM_SALVAR_UUID
 *&---------------------------------------------------------------------*
 FORM frm_salvar_uuid
-  USING    value(pv_bukrs) TYPE char10
+  USING    value(pv_bukrs) TYPE bukrs
            value(pv_belnr) TYPE belnr_d
            value(pv_gjahr) TYPE gjahr
            value(pv_uuid)  TYPE char36
@@ -123,7 +123,7 @@ ENDFORM.
 *&---------------------------------------------------------------------*
 FORM frm_actualizar_factura_uuid
   USING value(ps_datos) TYPE gty_csv_data
-        value(pv_bukrs) TYPE char10
+        value(pv_bukrs) TYPE bukrs
         value(pv_belnr) TYPE belnr_d
         value(pv_gjahr) TYPE gjahr.
 
