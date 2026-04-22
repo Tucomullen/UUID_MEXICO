@@ -196,8 +196,8 @@ ENDFORM.                    " FRM_TIPO_FACTURA
 *&---------------------------------------------------------------------*
 FORM frm_procesar_compra
   USING value(ps_datos)    TYPE gty_csv_data
-        value(pv_bukrs)    TYPE char10   " Sociedad
-        value(pv_lifnr)    TYPE char10   " Proveedor
+        value(pv_bukrs)    TYPE bukrs   " Sociedad
+        value(pv_lifnr)    TYPE lifnr   " Proveedor
         value(pv_gjahr)    TYPE gjahr
         value(pv_total)    TYPE p.
 
@@ -226,8 +226,8 @@ ENDFORM.                    " FRM_PROCESAR_COMPRA
 *&---------------------------------------------------------------------*
 FORM frm_procesar_venta
   USING value(ps_datos)    TYPE gty_csv_data
-        value(pv_bukrs)    TYPE char10   " Sociedad
-        value(pv_kunnr)    TYPE char10   " Cliente
+        value(pv_bukrs)    TYPE bukrs   " Sociedad
+        value(pv_kunnr)    TYPE kunnr   " Cliente
         value(pv_gjahr)    TYPE gjahr
         value(pv_total)    TYPE p.
 
@@ -257,8 +257,8 @@ ENDFORM.                    " FRM_PROCESAR_VENTA
 *&---------------------------------------------------------------------*
 FORM frm_procesar_intercompany
   USING value(ps_datos)       TYPE gty_csv_data
-        value(pv_bukrs_emi)   TYPE char10  " BUKRS emisor
-        value(pv_bukrs_rec)   TYPE char10  " BUKRS receptor
+        value(pv_bukrs_emi)   TYPE bukrs  " BUKRS emisor
+        value(pv_bukrs_rec)   TYPE bukrs  " BUKRS receptor
         value(pv_gjahr)       TYPE gjahr
         value(pv_total)       TYPE p.
 
@@ -323,8 +323,8 @@ ENDFORM. " FRM_PROCESAR_INTERCOMPANY
 *&---------------------------------------------------------------------*
 FORM frm_obtener_factura_compra
   USING    value(ps_datos)  TYPE gty_csv_data
-           value(pv_bukrs)  TYPE char10
-           value(pv_lifnr)  TYPE char10
+           value(pv_bukrs)  TYPE bukrs
+           value(pv_lifnr)  TYPE lifnr
            value(pv_gjahr)  TYPE gjahr
            value(pv_total)  TYPE p
   CHANGING pv_belnr         TYPE belnr_d
@@ -555,8 +555,8 @@ ENDFORM.                    " FRM_OBTENER_FACTURA_COMPRA
 *&---------------------------------------------------------------------*
 FORM frm_obtener_factura_venta
   USING    value(ps_datos)  TYPE gty_csv_data
-           value(pv_bukrs)  TYPE char10
-           value(pv_kunnr)  TYPE char10
+           value(pv_bukrs)  TYPE bukrs
+           value(pv_kunnr)  TYPE kunnr
            value(pv_gjahr)  TYPE gjahr
            value(pv_total)  TYPE p
   CHANGING pv_belnr         TYPE belnr_d
