@@ -70,69 +70,71 @@ FORM frm_reprocesar_errores.
       ENDIF.
 
     ELSE. " Otras operaciones (Venta/Compra)
-      " Buscar BKPF por folio exacto en todas las sociedades
-      SELECT bukrs belnr gjahr xblnr blart budat bldat
-        FROM bkpf INTO TABLE lt_bkpf
-        WHERE xblnr = ls_log_db-folio.
+      DATA: lv_target_bukrs TYPE bukrs.
+      CLEAR lv_target_bukrs.
+
+      " Identificar nuestra sociedad a partir del RFC para usar índices en BKPF
+      IF ls_log_db-tipo_fac = gc_tipo_compra.
+        READ TABLE gt_t001z_cache INTO DATA(ls_cache_c) WITH KEY paval = ls_log_db-rfc_receptor.
+        IF sy-subrc = 0. lv_target_bukrs = ls_cache_c-bukrs. ENDIF.
+      ELSEIF ls_log_db-tipo_fac = gc_tipo_venta.
+        READ TABLE gt_t001z_cache INTO DATA(ls_cache_v) WITH KEY paval = ls_log_db-rfc_emisor.
+        IF sy-subrc = 0. lv_target_bukrs = ls_cache_v-bukrs. ENDIF.
+      ENDIF.
+
+      " Buscar BKPF por folio exacto usando BUKRS si es posible (Index Hit)
+      IF lv_target_bukrs IS NOT INITIAL.
+        SELECT bukrs belnr gjahr xblnr blart budat bldat
+          FROM bkpf INTO TABLE lt_bkpf
+          WHERE bukrs = lv_target_bukrs
+            AND xblnr = ls_log_db-folio.
+      ELSE.
+        " Solo si no identificamos sociedad, buscamos globalmente (Lento - Full Scan)
+        SELECT bukrs belnr gjahr xblnr blart budat bldat
+          FROM bkpf INTO TABLE lt_bkpf
+          WHERE xblnr = ls_log_db-folio.
+      ENDIF.
         
       IF sy-subrc = 0.
         LOOP AT lt_bkpf INTO ls_bkpf.
           IF ls_log_db-tipo_fac = gc_tipo_compra.
-            READ TABLE gt_t001z_cache INTO DATA(ls_cache_c) WITH KEY paval = ls_log_db-rfc_receptor.
-            IF sy-subrc = 0 AND ls_cache_c-bukrs = ls_bkpf-bukrs.
-              SELECT * FROM bseg INTO TABLE lt_bseg
-                WHERE bukrs = ls_bkpf-bukrs
-                  AND belnr = ls_bkpf-belnr
-                  AND gjahr = ls_bkpf-gjahr
-                  AND koart = 'K'.
-              LOOP AT lt_bseg INTO ls_bseg.
-                READ TABLE gt_lfa1_cache INTO DATA(ls_lfa1) WITH KEY stcd1 = ls_log_db-rfc_emisor.
-                IF sy-subrc <> 0.
-                  SELECT SINGLE lifnr stcd1 FROM lfa1 INTO ls_lfa1 WHERE stcd1 = ls_log_db-rfc_emisor.
-                  IF sy-subrc = 0.
-                    INSERT ls_lfa1 INTO TABLE gt_lfa1_cache.
-                  ELSE.
-                    ls_lfa1-stcd1 = ls_log_db-rfc_emisor.
-                    INSERT ls_lfa1 INTO TABLE gt_lfa1_cache.
-                  ENDIF.
-                ENDIF.
-                IF ls_bseg-lifnr = ls_lfa1-lifnr AND ls_bseg-lifnr IS NOT INITIAL.
-                  PERFORM frm_actualizar_factura_uuid USING ls_csv_data ls_bkpf-bukrs ls_bkpf-belnr ls_bkpf-gjahr.
-                  lv_success = abap_true.
-                  EXIT.
-                ENDIF.
-              ENDLOOP.
-            ENDIF.
+            " Validar que el acreedor coincida
+            SELECT * FROM bseg INTO TABLE lt_bseg
+              WHERE bukrs = ls_bkpf-bukrs
+                AND belnr = ls_bkpf-belnr
+                AND gjahr = ls_bkpf-gjahr
+                AND koart = 'K'.
+            LOOP AT lt_bseg INTO ls_bseg.
+              READ TABLE gt_lfa1_cache INTO DATA(ls_lfa1) WITH KEY stcd1 = ls_log_db-rfc_emisor.
+              IF sy-subrc <> 0.
+                SELECT SINGLE lifnr stcd1 FROM lfa1 INTO ls_lfa1 WHERE stcd1 = ls_log_db-rfc_emisor.
+                IF sy-subrc = 0. INSERT ls_lfa1 INTO TABLE gt_lfa1_cache. ENDIF.
+              ENDIF.
+              IF ls_bseg-lifnr = ls_lfa1-lifnr AND ls_bseg-lifnr IS NOT INITIAL.
+                PERFORM frm_actualizar_factura_uuid USING ls_csv_data ls_bkpf-bukrs ls_bkpf-belnr ls_bkpf-gjahr.
+                lv_success = abap_true. EXIT.
+              ENDIF.
+            ENDLOOP.
           ELSEIF ls_log_db-tipo_fac = gc_tipo_venta.
-            READ TABLE gt_t001z_cache INTO DATA(ls_cache_v) WITH KEY paval = ls_log_db-rfc_emisor.
-            IF sy-subrc = 0 AND ls_cache_v-bukrs = ls_bkpf-bukrs.
-              SELECT * FROM bseg INTO TABLE lt_bseg
-                WHERE bukrs = ls_bkpf-bukrs
-                  AND belnr = ls_bkpf-belnr
-                  AND gjahr = ls_bkpf-gjahr
-                  AND koart = 'D'.
-              LOOP AT lt_bseg INTO ls_bseg.
-                READ TABLE gt_kna1_cache INTO DATA(ls_kna1) WITH KEY stcd1 = ls_log_db-rfc_receptor.
-                IF sy-subrc <> 0.
-                  SELECT SINGLE kunnr stcd1 FROM kna1 INTO ls_kna1 WHERE stcd1 = ls_log_db-rfc_receptor.
-                  IF sy-subrc = 0.
-                    INSERT ls_kna1 INTO TABLE gt_kna1_cache.
-                  ELSE.
-                    ls_kna1-stcd1 = ls_log_db-rfc_receptor.
-                    INSERT ls_kna1 INTO TABLE gt_kna1_cache.
-                  ENDIF.
-                ENDIF.
-                IF ls_bseg-kunnr = ls_kna1-kunnr AND ls_bseg-kunnr IS NOT INITIAL.
-                  PERFORM frm_actualizar_factura_uuid USING ls_csv_data ls_bkpf-bukrs ls_bkpf-belnr ls_bkpf-gjahr.
-                  lv_success = abap_true.
-                  EXIT.
-                ENDIF.
-              ENDLOOP.
-            ENDIF.
+            " Validar que el cliente coincida
+            SELECT * FROM bseg INTO TABLE lt_bseg
+              WHERE bukrs = ls_bkpf-bukrs
+                AND belnr = ls_bkpf-belnr
+                AND gjahr = ls_bkpf-gjahr
+                AND koart = 'D'.
+            LOOP AT lt_bseg INTO ls_bseg.
+              READ TABLE gt_kna1_cache INTO DATA(ls_kna1) WITH KEY stcd1 = ls_log_db-rfc_receptor.
+              IF sy-subrc <> 0.
+                SELECT SINGLE kunnr stcd1 FROM kna1 INTO ls_kna1 WHERE stcd1 = ls_log_db-rfc_receptor.
+                IF sy-subrc = 0. INSERT ls_kna1 INTO TABLE gt_kna1_cache. ENDIF.
+              ENDIF.
+              IF ls_bseg-kunnr = ls_kna1-kunnr AND ls_bseg-kunnr IS NOT INITIAL.
+                PERFORM frm_actualizar_factura_uuid USING ls_csv_data ls_bkpf-bukrs ls_bkpf-belnr ls_bkpf-gjahr.
+                lv_success = abap_true. EXIT.
+              ENDIF.
+            ENDLOOP.
           ENDIF.
-          IF lv_success = abap_true.
-            EXIT. " Salir del loop de BKPF
-          ENDIF.
+          IF lv_success = abap_true. EXIT. ENDIF.
         ENDLOOP.
       ENDIF.
     ENDIF.
