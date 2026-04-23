@@ -76,7 +76,7 @@ FORM frm_salvar_uuid
   CALL FUNCTION 'SAVE_TEXT'
     EXPORTING
       header          = lv_header
-      insert          = 'X'
+      insert          = ' ' " Permite Insertar o Actualizar si ya existe
       savemode_direct = 'X'
     TABLES
       lines           = lt_lines
