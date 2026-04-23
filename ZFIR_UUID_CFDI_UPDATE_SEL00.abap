@@ -208,6 +208,11 @@ FORM frm_validar_seleccion.
 * Solo validar si el usuario pulsa "Ejecutar" (F8) o imprime
   CHECK sy-ucomm = 'ONLI' OR sy-ucomm = 'PRIN'.
 
+* Si el modo reproceso está activo, no necesitamos validar rutas
+  IF p_reproc = 'X'.
+    RETURN.
+  ENDIF.
+
 * ---- Modo servidor ----
 
   IF p_serv = 'X'.
