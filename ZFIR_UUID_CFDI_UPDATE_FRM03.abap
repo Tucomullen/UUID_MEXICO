@@ -153,6 +153,9 @@ FORM frm_reprocesar_errores.
       gs_log-uuid         = ls_log_db-uuid.
       APPEND gs_log TO gt_log.
       gv_error = gv_error + 1.
+    ELSE.
+      " Modificar el mensaje de gs_log que viene de frm_actualizar_factura_uuid
+      CONCATENATE '[REPROCESO]' gs_log-mensaje INTO gs_log-mensaje SEPARATED BY space.
     ENDIF.
 
     " 5. Actualizar la tabla ZTT_UUID_LOG con el resultado final
@@ -171,6 +174,20 @@ FORM frm_reprocesar_errores.
     ENDIF.
 
   ENDLOOP.
+
+  " 5.5 Grabar entrada en log de ejecuciones ZTT_UUID_EXEC
+  IF p_test IS INITIAL.
+    DATA: ls_exec TYPE ztt_uuid_exec.
+    ls_exec-fichero  = |REPROCESO_MASIVO_{ sy-datum }|.
+    ls_exec-datum    = sy-datum.
+    ls_exec-uzeit    = sy-uzeit.
+    ls_exec-uname    = sy-uname.
+    ls_exec-tot_reg  = gv_total.
+    ls_exec-ok_reg   = gv_ok.
+    ls_exec-warn_reg = gv_warning.
+    ls_exec-err_reg  = gv_error.
+    INSERT ztt_uuid_exec FROM ls_exec.
+  ENDIF.
 
   " 6. Mostrar el resultado por pantalla
   PERFORM frm_mostrar_alv.

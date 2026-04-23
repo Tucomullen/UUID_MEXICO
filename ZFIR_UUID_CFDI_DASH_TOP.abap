@@ -22,10 +22,11 @@ CONSTANTS:
 
 * KPIs globales
 TYPES: BEGIN OF gty_kpi,
-         tot_reg  TYPE i,
-         tot_ok   TYPE i,
-         tot_warn TYPE i,
-         tot_err  TYPE i,
+         tot_reg   TYPE i,
+         tot_ok    TYPE i,
+         tot_repro TYPE i,
+         tot_warn  TYPE i,
+         tot_err   TYPE i,
          pct_ok   TYPE p DECIMALS 2,
          pct_err  TYPE p DECIMALS 2,
          num_uuid TYPE i,

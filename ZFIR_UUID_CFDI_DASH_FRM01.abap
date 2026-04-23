@@ -81,7 +81,11 @@ FORM frm_agregar_kpis.
   LOOP AT gt_zlog_raw INTO ls_raw.
     gs_kpi-tot_reg = gs_kpi-tot_reg + 1.
     CASE ls_raw-icon_status.
-      WHEN '@08@'. gs_kpi-tot_ok   = gs_kpi-tot_ok   + 1.
+      WHEN '@08@'. 
+        gs_kpi-tot_ok   = gs_kpi-tot_ok   + 1.
+        IF ls_raw-mensaje CP '*[REPROCESO]*'.
+          gs_kpi-tot_repro = gs_kpi-tot_repro + 1.
+        ENDIF.
       WHEN '@09@'. gs_kpi-tot_warn = gs_kpi-tot_warn  + 1.
       WHEN '@0A@'. gs_kpi-tot_err  = gs_kpi-tot_err   + 1.
     ENDCASE.

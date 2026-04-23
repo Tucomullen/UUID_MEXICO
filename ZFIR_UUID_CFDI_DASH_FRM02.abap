@@ -96,6 +96,7 @@ FORM frm_render_html_kpi.
   " Definiciones de tooltips para ayuda contextual
   DATA: lv_t_total TYPE string VALUE 'Total de líneas de documentos contables SAP afectados.',
         lv_t_ok    TYPE string VALUE 'Documentos donde el UUID se asignó correctamente.',
+        lv_t_repro TYPE string VALUE 'Registros que fueron corregidos y actualizados mediante reprocesamiento masivo.',
         lv_t_warn  TYPE string VALUE 'Documentos con UUID previo diferente o que requieren revisión.',
         lv_t_err   TYPE string VALUE 'Registros con errores técnicos o documento SAP no localizado.',
         lv_t_pct   TYPE string VALUE 'Porcentaje de registros exitosos sobre el total procesado.',
@@ -124,6 +125,7 @@ FORM frm_render_html_kpi.
     '<div class="cards-container">' &&
     '<div class="card card-blue" title="' && lv_t_total && '"><div class="card-label">Total Procesados</div><div class="card-value">' && |{ gs_kpi-tot_reg }| && '</div></div>' &&
     '<a href="SAPEVENT:DRILLDOWN_OK" class="card card-ok card-click" title="' && lv_t_ok && '"><div class="card-label">Correctos (OK)</div><div class="card-value" style="color:#2e7d32">' && |{ gs_kpi-tot_ok }| && '</div></a>' &&
+    '<div class="card card-blue" title="' && lv_t_repro && '"><div class="card-label">Reprocesados OK</div><div class="card-value" style="color:#1565c0">' && |{ gs_kpi-tot_repro }| && '</div></div>' &&
     '<a href="SAPEVENT:DRILLDOWN_WARN" class="card card-warn card-click" title="' && lv_t_warn && '"><div class="card-label">Con Warning</div><div class="card-value" style="color:#f9a825">' && |{ gs_kpi-tot_warn }| && '</div></a>' &&
     '<a href="SAPEVENT:DRILLDOWN_ERR" class="card card-err card-click" title="' && lv_t_err && '"><div class="card-label">Con Error</div><div class="card-value" style="color:#c62828">' && |{ gs_kpi-tot_err }| && '</div></a>' &&
     '<div class="card card-blue" title="' && lv_t_pct && '"><div class="card-label">% Éxito</div><div class="card-value">' && |{ gs_kpi-pct_ok }%| && '</div></div>' &&
