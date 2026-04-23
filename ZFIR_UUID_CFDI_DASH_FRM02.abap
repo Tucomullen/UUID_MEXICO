@@ -100,7 +100,7 @@ FORM frm_render_html_kpi.
         lv_t_warn  TYPE string VALUE 'Documentos con UUID previo diferente o que requieren revisión.',
         lv_t_err   TYPE string VALUE 'Registros con errores técnicos o documento SAP no localizado.',
         lv_t_pct   TYPE string VALUE 'Porcentaje de registros exitosos sobre el total procesado.',
-        lv_t_uuid  TYPE string VALUE 'Contador de facturas fiscales reales (CFDI). Útil para control de Intercompanies.'.
+        lv_t_uuid  TYPE string VALUE 'Contador total de certificados fiscales reales (CFDI) procesados.'.
 
   " Construcción del HTML con CSS inline para máximo impacto
   lv_html =
@@ -129,7 +129,7 @@ FORM frm_render_html_kpi.
     '<a href="SAPEVENT:DRILLDOWN_WARN" class="card card-warn card-click" title="' && lv_t_warn && '"><div class="card-label">Con Warning</div><div class="card-value" style="color:#f9a825">' && |{ gs_kpi-tot_warn }| && '</div></a>' &&
     '<a href="SAPEVENT:DRILLDOWN_ERR" class="card card-err card-click" title="' && lv_t_err && '"><div class="card-label">Con Error</div><div class="card-value" style="color:#c62828">' && |{ gs_kpi-tot_err }| && '</div></a>' &&
     '<div class="card card-blue" title="' && lv_t_pct && '"><div class="card-label">% Éxito</div><div class="card-value">' && |{ gs_kpi-pct_ok }%| && '</div></div>' &&
-    '<div class="card card-blue" title="' && lv_t_uuid && '"><div class="card-label">UUIDs Únicos</div><div class="card-value">' && |{ gs_kpi-num_uuid }| && '</div></div>' &&
+    '<div class="card card-blue" title="' && lv_t_uuid && '"><div class="card-label">Total CFDIs</div><div class="card-value">' && |{ gs_kpi-num_uuid }| && '</div></div>' &&
     '</div></body></html>'.
 
   " Convertir STRING a tabla W3HTML
