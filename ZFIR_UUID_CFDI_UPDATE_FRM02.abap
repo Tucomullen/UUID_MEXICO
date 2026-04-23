@@ -76,7 +76,7 @@ FORM frm_salvar_uuid
   CALL FUNCTION 'SAVE_TEXT'
     EXPORTING
       header          = lv_header
-      insert          = ' ' " Permite Insertar o Actualizar si ya existe
+      insert          = 'X'
       savemode_direct = 'X'
     TABLES
       lines           = lt_lines
@@ -156,31 +156,61 @@ FORM frm_actualizar_factura_uuid
   gs_log-monat     = lv_budat+4(2).
   gs_log-test_mode = p_test.
 
+  DATA: lv_status TYPE c,
+        lv_uuid_previo TYPE char36.
+
   IF p_test = ''.
 *   ---- MODO PRODUCTIVO: Grabar UUID ----
-    PERFORM frm_salvar_uuid
+    " 1. Comprobar si el documento ya tiene un UUID
+    PERFORM frm_existe_uuid
       USING pv_bukrs pv_belnr pv_gjahr ps_datos-uuid
-      CHANGING lv_error.
+      CHANGING lv_status lv_uuid_previo.
 
-    IF lv_error = ''.
-*     Grabación exitosa
-      gs_log-icon    = gc_icon_ok.
-      CONCATENATE 'UUID actualizado correctamente:' pv_bukrs pv_belnr pv_gjahr
+    IF lv_status = gc_stat_same OR lv_status = gc_stat_diff.
+      " El documento YA tiene un UUID asignado (igual o distinto)
+      " Tal y como solicitó el negocio, si ya tiene UUID, se da por correcto en reproceso y NO se sobrescribe.
+      gs_log-icon = gc_icon_ok.
+      CONCATENATE '[REPROCESO] Documento ya tiene UUID, se asume correcto:' pv_bukrs pv_belnr pv_gjahr
         INTO gs_log-mensaje SEPARATED BY space.
+      gs_log-uuid_previo = lv_uuid_previo.
       gv_ok = gv_ok + 1.
     ELSE.
-*     Error en la grabación
-      gs_log-icon    = gc_icon_err.
-      CONCATENATE 'Error actualizando UUID en documento:' pv_bukrs pv_belnr pv_gjahr
-        INTO gs_log-mensaje SEPARATED BY space.
-      gv_error = gv_error + 1.
+      " No tiene UUID, intentamos grabarlo
+      PERFORM frm_salvar_uuid
+        USING pv_bukrs pv_belnr pv_gjahr ps_datos-uuid
+        CHANGING lv_error.
+
+      IF lv_error = ''.
+*       Grabación exitosa
+        gs_log-icon    = gc_icon_ok.
+        CONCATENATE 'UUID actualizado correctamente:' pv_bukrs pv_belnr pv_gjahr
+          INTO gs_log-mensaje SEPARATED BY space.
+        gv_ok = gv_ok + 1.
+      ELSE.
+*       Error en la grabación
+        gs_log-icon    = gc_icon_err.
+        CONCATENATE 'Error actualizando UUID en documento:' pv_bukrs pv_belnr pv_gjahr
+          INTO gs_log-mensaje SEPARATED BY space.
+        gv_error = gv_error + 1.
+      ENDIF.
     ENDIF.
 
   ELSE.
 *   ---- MODO TEST: Solo simular ----
+    " En modo test también comprobamos si ya existe
+    PERFORM frm_existe_uuid
+      USING pv_bukrs pv_belnr pv_gjahr ps_datos-uuid
+      CHANGING lv_status lv_uuid_previo.
+
     gs_log-icon    = gc_icon_ok.
-    CONCATENATE 'SIMULACIÓN: Se actualizaría UUID en:' pv_bukrs pv_belnr pv_gjahr
-      INTO gs_log-mensaje SEPARATED BY space.
+    IF lv_status = gc_stat_same OR lv_status = gc_stat_diff.
+      CONCATENATE 'SIMULACIÓN: Ya tiene UUID, se asumiría correcto:' pv_bukrs pv_belnr pv_gjahr
+        INTO gs_log-mensaje SEPARATED BY space.
+      gs_log-uuid_previo = lv_uuid_previo.
+    ELSE.
+      CONCATENATE 'SIMULACIÓN: Se actualizaría UUID en:' pv_bukrs pv_belnr pv_gjahr
+        INTO gs_log-mensaje SEPARATED BY space.
+    ENDIF.
     gv_ok = gv_ok + 1.
   ENDIF.
 
