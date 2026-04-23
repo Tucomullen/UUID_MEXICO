@@ -178,14 +178,14 @@ FORM frm_reprocesar_errores.
   " 5.5 Grabar entrada en log de ejecuciones ZTT_UUID_EXEC
   IF p_test IS INITIAL.
     DATA: ls_exec TYPE ztt_uuid_exec.
-    ls_exec-fichero  = |REPROCESO_MASIVO_{ sy-datum }|.
-    ls_exec-datum    = sy-datum.
-    ls_exec-uzeit    = sy-uzeit.
-    ls_exec-uname    = sy-uname.
-    ls_exec-tot_reg  = gv_total.
-    ls_exec-ok_reg   = gv_ok.
-    ls_exec-warn_reg = gv_warning.
-    ls_exec-err_reg  = gv_error.
+    ls_exec-fichero    = |REPROCESO_MASIVO_{ sy-datum }|.
+    ls_exec-datum_proc = sy-datum.
+    ls_exec-uzeit_proc = sy-uzeit.
+    ls_exec-uname      = sy-uname.
+    ls_exec-tot_reg    = gv_total.
+    ls_exec-tot_ok     = gv_ok.
+    ls_exec-tot_warn   = gv_warning.
+    ls_exec-tot_err    = gv_error.
     INSERT ztt_uuid_exec FROM ls_exec.
   ENDIF.
 

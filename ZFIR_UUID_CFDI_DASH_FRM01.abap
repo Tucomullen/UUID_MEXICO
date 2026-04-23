@@ -40,7 +40,7 @@ FORM frm_leer_ztable.
     DELETE gt_zlog_raw WHERE test_mode <> ' '.
   ENDIF.
 
-  * ---> INICIO CHECK DE AUTORIZACIÓN POR SOCIEDAD FI <---
+  " ---> INICIO CHECK DE AUTORIZACIÓN POR SOCIEDAD FI <---
   DATA: lv_tabix TYPE sytabix.
   
   LOOP AT gt_zlog_raw INTO DATA(ls_log).
@@ -55,7 +55,7 @@ FORM frm_leer_ztable.
       DELETE gt_zlog_raw INDEX lv_tabix.
     ENDIF.
   ENDLOOP.
-  * ---> FIN CHECK DE AUTORIZACIÓN <---
+  " ---> FIN CHECK DE AUTORIZACIÓN <---
 
   IF gt_zlog_raw IS INITIAL.
     REFRESH gt_zlog_raw.
