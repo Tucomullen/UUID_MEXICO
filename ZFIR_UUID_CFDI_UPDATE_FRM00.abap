@@ -475,7 +475,11 @@ FORM frm_procesar_registros.
         lv_receptor_bk TYPE char10,      " BUKRS o KUNNR del receptor
         lv_gjahr      TYPE gjahr,        " Ejercicio extraído de la fecha
         lv_error      TYPE c,
-        lv_total_num  TYPE p DECIMALS 0. " Total numérico para comparación
+        lv_total_num  TYPE p DECIMALS 0, " Total numérico para comparación
+        lv_bukrs_f    TYPE bukrs,
+        lv_bukrs_f2   TYPE bukrs,
+        lv_lifnr_f    TYPE lifnr,
+        lv_kunnr_f    TYPE kunnr.
 
 * Inicializar contadores
   CLEAR: gv_total, gv_ok, gv_warning, gv_error.
@@ -547,18 +551,24 @@ FORM frm_procesar_registros.
     CASE lv_tipo_fac.
       WHEN gc_tipo_compra.
         " Compra: sociedad = receptor, proveedor = emisor
+        lv_bukrs_f = lv_receptor_bk.
+        lv_lifnr_f = lv_emisor_bk.
         PERFORM frm_procesar_compra
-          USING ls_datos lv_receptor_bk lv_emisor_bk lv_gjahr lv_total_num.
+          USING ls_datos lv_bukrs_f lv_lifnr_f lv_gjahr lv_total_num.
 
       WHEN gc_tipo_venta.
         " Venta: sociedad = emisor, cliente = receptor
+        lv_bukrs_f = lv_emisor_bk.
+        lv_kunnr_f = lv_receptor_bk.
         PERFORM frm_procesar_venta
-          USING ls_datos lv_emisor_bk lv_receptor_bk lv_gjahr lv_total_num.
+          USING ls_datos lv_bukrs_f lv_kunnr_f lv_gjahr lv_total_num.
 
       WHEN gc_tipo_interco.
         " Intercompany: procesar ambos lados
+        lv_bukrs_f  = lv_emisor_bk.
+        lv_bukrs_f2 = lv_receptor_bk.
         PERFORM frm_procesar_intercompany
-          USING ls_datos lv_emisor_bk lv_receptor_bk lv_gjahr lv_total_num.
+          USING ls_datos lv_bukrs_f lv_bukrs_f2 lv_gjahr lv_total_num.
 
     ENDCASE.
 
