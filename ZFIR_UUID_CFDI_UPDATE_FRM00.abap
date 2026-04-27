@@ -747,7 +747,45 @@ FORM frm_init_cache.
   REFRESH gt_lfa1_cache.
   REFRESH gt_kna1_cache.
 
+* Si se activó el filtro de repetidos, cargarlos en caché global
+  IF p_repet = 'X'.
+    PERFORM frm_obtener_facturas_repetidas.
+  ENDIF.
+
 ENDFORM.                    " FRM_INIT_CACHE
+
+*&---------------------------------------------------------------------*
+*& Form FRM_OBTENER_FACTURAS_REPETIDAS
+*&---------------------------------------------------------------------*
+*& Lee la tabla ZTT_UUID_LOG y guarda en memoria las combinaciones
+*& BUKRS/BELNR que actualmente comparten un mismo UUID (COUNT > 1).
+*&---------------------------------------------------------------------*
+FORM frm_obtener_facturas_repetidas.
+  DATA: ls_rep TYPE gty_factura_repetida.
+
+  TYPES: BEGIN OF lty_uuid_rep,
+           uuid TYPE ztt_uuid_log-uuid,
+         END OF lty_uuid_rep.
+  DATA: lt_uuid_rep TYPE TABLE OF lty_uuid_rep.
+
+  " 1. Obtener los UUIDs que se repiten más de 1 vez
+  SELECT uuid
+    FROM ztt_uuid_log
+    INTO TABLE lt_uuid_rep
+    WHERE uuid <> ''
+    GROUP BY uuid
+    HAVING COUNT(*) > 1.
+
+  " 2. Si hay repetidos, obtener las facturas afectadas
+  IF lt_uuid_rep IS NOT INITIAL.
+    SELECT bukrs belnr
+      FROM ztt_uuid_log
+      INTO CORRESPONDING FIELDS OF TABLE gt_facturas_repetidas
+      FOR ALL ENTRIES IN lt_uuid_rep
+      WHERE uuid = lt_uuid_rep-uuid.
+  ENDIF.
+
+ENDFORM.                    " FRM_OBTENER_FACTURAS_REPETIDAS
 
 *&=====================================================================*
 *&  NUEVOS FORMS PARA MODO SERVIDOR (AL11)                            *

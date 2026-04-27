@@ -138,6 +138,14 @@ DATA: gt_kna1_cache TYPE HASHED TABLE OF gty_kna1_cache
 DATA: gt_csv_data TYPE TABLE OF gty_csv_data,
       gs_csv_data TYPE gty_csv_data.
 
+* Estructura y tabla para facturas con UUID repetido
+TYPES: BEGIN OF gty_factura_repetida,
+         bukrs TYPE bukrs,
+         belnr TYPE belnr_d,
+       END OF gty_factura_repetida.
+DATA: gt_facturas_repetidas TYPE HASHED TABLE OF gty_factura_repetida
+                            WITH UNIQUE KEY bukrs belnr.
+
 * Tabla de log para ALV (ejecución fichero actual)
 DATA: gt_log TYPE TABLE OF gty_log,
       gs_log TYPE gty_log.
@@ -199,6 +207,7 @@ SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE text-b01.
   SELECTION-SCREEN SKIP 1.
   PARAMETERS: p_test AS CHECKBOX DEFAULT 'X'.               " Modo simulación
   PARAMETERS: p_reproc AS CHECKBOX DEFAULT ' '.             " Reprocesar errores/warnings
+  PARAMETERS: p_repet  AS CHECKBOX DEFAULT ' '.             " Solo reprocesar repetidos
 SELECTION-SCREEN END OF BLOCK b1.
 
 SELECTION-SCREEN BEGIN OF BLOCK b2 WITH FRAME TITLE text-b02.
