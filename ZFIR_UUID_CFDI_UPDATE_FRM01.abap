@@ -50,9 +50,9 @@ FORM frm_tipo_factura
 
 * Determinar tipo de factura según qué RFC pertenece al grupo
   IF lv_emisor_grupo_mx = 'X' AND lv_receptor_grupo_mx = 'X'.
-*   ---- INTERCOMPANY (Modificado para reproceso: No procesar ambos lados) ----
-*   Ambos son sociedades Acciona MX. Se extrae el RFC del dueño del fichero
-*   para procesar únicamente el lado correspondiente y evitar UUID repetidos.
+*   ---- INTERCOMPANY ----
+*   Ambos son sociedades Acciona MX.
+*   Determinar el lado a procesar según el RFC del archivo.
     DATA: lv_filename TYPE string,
           lt_parts    TYPE TABLE OF string,
           lv_rfc_owner TYPE char13,
@@ -71,12 +71,12 @@ FORM frm_tipo_factura
     SPLIT lv_filename AT '_' INTO lv_rfc_owner lv_filename.
 
     IF ps_datos-rfc_emisor = lv_rfc_owner.
-      " El dueño es el Emisor -> Procesar solo como Venta
+      " El dueño es el Emisor -> Procesar como Venta
       pv_tipo_factura = gc_tipo_venta.
       pv_emisor       = lv_bukrs_emisor.
       CONCATENATE 'C-' lv_bukrs_receptor INTO pv_receptor.
     ELSEIF ps_datos-rfc_receptor = lv_rfc_owner.
-      " El dueño es el Receptor -> Procesar solo como Compra
+      " El dueño es el Receptor -> Procesar como Compra
       pv_tipo_factura = gc_tipo_compra.
       pv_receptor     = lv_bukrs_receptor.
       CONCATENATE 'V-' lv_bukrs_emisor INTO pv_emisor.

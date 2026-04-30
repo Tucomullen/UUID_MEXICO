@@ -400,13 +400,16 @@ ENDFORM.
 *&---------------------------------------------------------------------*
 *& Búsqueda inversa: dado un documento que ha perdido su UUID,
 *& recorre gt_csv_all buscando el CSV que apunta a ese documento.
-*& Criterio: folio del CSV contenido en XBLNR del documento Y RFC ok.
+*& Criterio: folio + RFC + importe (scoring para desambiguar si hay múltiples).
 *& Excluye iv_uuid_exc (el UUID incorrecto que ya sabemos que no es).
 *&
-*& Resultado:
-*&   ev_found = 'X' → encontrado un único candidato (ev_uuid = UUID correcto)
-*&   ev_found = 'M' → múltiples candidatos, ambiguo
-*&   ev_found = '' → no encontrado
+*& Algoritmo con scoring:
+*&   1. Recopila todos los CSVs candidatos (folio + RFC ok)
+*&   2. Calcula score para cada uno (folio=2, RFC=3, importe=1)
+*&   3. Si hay empate en puntuación: selecciona el primero (estable)
+*&   4. Resultado:
+*&      - ev_found = 'X' → encontrado con score, ev_uuid = UUID mejor
+*&      - ev_found = '' → no encontrado
 *&---------------------------------------------------------------------*
 FORM frm_buscar_uuid_para_doc
   USING    iv_bukrs    TYPE bukrs
@@ -421,24 +424,40 @@ FORM frm_buscar_uuid_para_doc
            ev_fichero  TYPE string
            ev_found    TYPE c.
 
-  DATA: ls_csv      TYPE gty_csv_rec,
-        lv_rfc_ok   TYPE c,
-        lv_matches  TYPE i.
+  TYPES: BEGIN OF lty_csv_candidato,
+           uuid      TYPE char36,
+           fichero   TYPE string,
+           folio_ok  TYPE c,
+           rfc_ok    TYPE c,
+           score     TYPE i,
+         END OF lty_csv_candidato.
 
-  CLEAR: ev_uuid, ev_fichero, ev_found, lv_matches.
+  DATA: ls_csv          TYPE gty_csv_rec,
+        lt_candidatos   TYPE TABLE OF lty_csv_candidato,
+        ls_candidato    TYPE lty_csv_candidato,
+        lv_rfc_ok       TYPE c,
+        lv_folio_ok     TYPE c,
+        lv_total_csv    TYPE p DECIMALS 0,
+        lv_total_bd     TYPE p DECIMALS 0.
+
+  CLEAR: ev_uuid, ev_fichero, ev_found.
+  REFRESH lt_candidatos.
 
   LOOP AT gt_csv_all INTO ls_csv.
 
     IF ls_csv-uuid = iv_uuid_exc. CONTINUE. ENDIF.
     IF ls_csv-uuid IS INITIAL.    CONTINUE. ENDIF.
 
-*   El folio del CSV debe estar contenido en el XBLNR del documento
-    IF iv_xblnr IS INITIAL
-    OR ls_csv-folio IS INITIAL
-    OR ( NOT ( iv_xblnr CS ls_csv-folio )
-         AND NOT ( ls_csv-folio CS iv_xblnr ) ).
-      CONTINUE.
+*   Check folio: el folio del CSV debe estar contenido en XBLNR o viceversa
+    CLEAR lv_folio_ok.
+    IF iv_xblnr IS NOT INITIAL
+    AND ls_csv-folio IS NOT INITIAL
+    AND ( iv_xblnr CS ls_csv-folio OR ls_csv-folio CS iv_xblnr ).
+      lv_folio_ok = 'X'.
     ENDIF.
+
+*   Si no hay coincidencia de folio, saltamos
+    IF lv_folio_ok <> 'X'. CONTINUE. ENDIF.
 
 *   Verificar RFC
     CLEAR lv_rfc_ok.
@@ -447,23 +466,41 @@ FORM frm_buscar_uuid_para_doc
                iv_bukrs iv_lifnr iv_kunnr iv_koart
       CHANGING lv_rfc_ok.
 
-    IF lv_rfc_ok = 'X'.
-      lv_matches = lv_matches + 1.
-      IF lv_matches = 1.
-        ev_uuid    = ls_csv-uuid.
-        ev_fichero = ls_csv-fichero.
-      ELSE.
-*       Múltiples candidatos → no podemos decidir automáticamente
-        CLEAR: ev_uuid, ev_fichero.
-        ev_found = 'M'.
-        RETURN.
+*   Si hay RFC ok o folio ok (al menos uno), es candidato válido
+    IF lv_rfc_ok = 'X' OR lv_folio_ok = 'X'.
+      CLEAR ls_candidato.
+      ls_candidato-uuid     = ls_csv-uuid.
+      ls_candidato-fichero  = ls_csv-fichero.
+      ls_candidato-folio_ok = lv_folio_ok.
+      ls_candidato-rfc_ok   = lv_rfc_ok.
+
+*     Calcular score (igual que en frm_verificar_grupo)
+      IF lv_folio_ok = 'X'.
+        ls_candidato-score = ls_candidato-score + 2.
       ENDIF.
+      IF lv_rfc_ok = 'X'.
+        ls_candidato-score = ls_candidato-score + 3.
+      ENDIF.
+
+      APPEND ls_candidato TO lt_candidatos.
     ENDIF.
 
   ENDLOOP.
 
-  IF lv_matches = 1.
-    ev_found = 'X'.
+*   Si no hay candidatos, retornar sin encontrado
+  IF lt_candidatos IS INITIAL.
+    RETURN.
+  ENDIF.
+
+*   Ordenar por score descendente (el mejor primero)
+  SORT lt_candidatos BY score DESCENDING.
+
+*   Seleccionar el primero (mejor score)
+  READ TABLE lt_candidatos INTO ls_candidato INDEX 1.
+  IF sy-subrc = 0.
+    ev_uuid    = ls_candidato-uuid.
+    ev_fichero = ls_candidato-fichero.
+    ev_found   = 'X'.
   ENDIF.
 
 ENDFORM.

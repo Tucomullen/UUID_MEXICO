@@ -40,7 +40,7 @@ FORM frm_corregir_documento
   DATA: ls_header   TYPE thead,
         lt_lines    TYPE TABLE OF tline,
         ls_line     TYPE tline,
-        lv_tdname   TYPE tdname,
+        lv_tdname   TYPE tdobname,
         lv_accion   TYPE char10,
         lv_mensaje  TYPE char255,
         lv_icon     TYPE icon_d,
@@ -53,13 +53,13 @@ FORM frm_corregir_documento
       lv_mensaje = |UUID corregido: { iv_uuid_nvo }|.
       lv_icon    = gc_icon_ok.
     WHEN ''.
-      lv_accion  = 'BORRADO'.
-      lv_mensaje = 'UUID eliminado: no se encontró CSV para este documento.'.
-      lv_icon    = gc_icon_warn.
-    WHEN OTHERS.   " 'M'
-      lv_accion  = 'MANUAL'.
-      lv_mensaje = 'Múltiples CSV candidatos. Revisión manual requerida.'.
-      lv_icon    = gc_icon_warn.
+      lv_accion  = 'NO_ENCONTRADO'.
+      lv_mensaje = 'UUID no encontrado en CSVs del servidor para este documento.'.
+      lv_icon    = gc_icon_err.
+    WHEN OTHERS.
+      lv_accion  = 'ERROR'.
+      lv_mensaje = 'Error desconocido en búsqueda de UUID.'.
+      lv_icon    = gc_icon_err.
   ENDCASE.
 
 * ── Registrar en gt_resultado (siempre, también en modo simulación) ───
@@ -79,9 +79,8 @@ FORM frm_corregir_documento
   gs_resultado-test_mode   = p_test.
   APPEND gs_resultado TO gt_resultado.
 
-* ── En caso MANUAL: no hay nada más que hacer ─────────────────────────
-  IF lv_accion = 'MANUAL'.
-    gv_manual = gv_manual + 1.
+* ── En caso NO_ENCONTRADO: no hay nada más que hacer, solo reportar ───
+  IF lv_accion = 'NO_ENCONTRADO' OR lv_accion = 'ERROR'.
     RETURN.
   ENDIF.
 
@@ -203,16 +202,18 @@ FORM frm_actualizar_log_ko
         iv_belnr    TYPE belnr_d
         iv_gjahr    TYPE gjahr
         iv_uuid_old TYPE char36    " UUID duplicado que tenía
-        iv_uuid_new TYPE char36    " UUID nuevo asignado (vacío si se borró)
+        iv_uuid_new TYPE char36    " UUID nuevo asignado (vacío si no encontrado)
         iv_accion   TYPE char10
         iv_mensaje  TYPE char255.
 
   DATA: lv_icon TYPE icon_d.
 
   CASE iv_accion.
-    WHEN 'CORREGIDO'. lv_icon = gc_icon_ok.
-    WHEN 'BORRADO'.   lv_icon = gc_icon_warn.
-    WHEN OTHERS.      lv_icon = gc_icon_err.
+    WHEN 'CORREGIDO'.      lv_icon = gc_icon_ok.
+    WHEN 'BORRADO'.        lv_icon = gc_icon_warn.
+    WHEN 'NO_ENCONTRADO'.  lv_icon = gc_icon_err.
+    WHEN 'ERROR'.          lv_icon = gc_icon_err.
+    WHEN OTHERS.           lv_icon = gc_icon_err.
   ENDCASE.
 
   UPDATE ztt_uuid_log

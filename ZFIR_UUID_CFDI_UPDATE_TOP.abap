@@ -100,6 +100,16 @@ TYPES: BEGIN OF gty_resumen_fich,
          error    TYPE i,               " Con error
        END OF gty_resumen_fich.
 
+* Estructura para caché de UUIDs existentes (optimización de rendimiento)
+TYPES: BEGIN OF gty_uuid_cache,
+         uuid   TYPE char36,
+         bukrs  TYPE bukrs,
+         belnr  TYPE belnr_d,
+         gjahr  TYPE gjahr,
+         tdname TYPE tdobname,
+       END OF gty_uuid_cache.
+       END OF gty_resumen_fich.
+
 * Estructura para listado de ficheros del servidor (modo AL11)
 TYPES: BEGIN OF gty_server_file,
          fullpath TYPE string,           " Ruta completa del fichero
@@ -160,6 +170,10 @@ DATA: gt_resumen_fich TYPE TABLE OF gty_resumen_fich,
 * Lista de ficheros CSV encontrados en servidor (modo AL11)
 DATA: gt_server_files TYPE TABLE OF gty_server_file,
       gs_server_file  TYPE gty_server_file.
+
+* Caché de UUIDs existentes en BD (optimización de rendimiento)
+DATA: gt_uuid_cache TYPE HASHED TABLE OF gty_uuid_cache
+                    WITH UNIQUE KEY uuid.
 
 * Fichero en proceso actualmente
 DATA: gv_fichero_actual TYPE string.

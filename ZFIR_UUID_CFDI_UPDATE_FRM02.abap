@@ -49,6 +49,50 @@ FORM frm_existe_uuid
 ENDFORM.
 
 *&---------------------------------------------------------------------*
+*& Form FRM_UUID_EXISTE_EN_BD
+*&---------------------------------------------------------------------*
+*& CONTROL QUIRÚRGICO OPTIMIZADO: Verifica si el UUID ya existe en
+*& CUALQUIER otro documento usando la CACHÉ en memoria (gt_uuid_cache).
+*& Retorna 'X' si el UUID ya está asignado a otro documento.
+*& OPTIMIZACIÓN: Consulta en memoria (instantánea) vs SELECT (97 seg/registro).
+*&---------------------------------------------------------------------*
+FORM frm_uuid_existe_en_bd
+  USING    value(pv_uuid)  TYPE char36
+           value(pv_bukrs) TYPE bukrs
+           value(pv_belnr) TYPE belnr_d
+           value(pv_gjahr) TYPE gjahr
+  CHANGING pv_existe       TYPE c
+           pv_bukrs_exist  TYPE bukrs
+           pv_belnr_exist  TYPE belnr_d
+           pv_gjahr_exist  TYPE gjahr.
+
+  DATA: ls_cache TYPE gty_uuid_cache,
+        lv_tdname_actual TYPE tdobname.
+
+  CLEAR: pv_existe, pv_bukrs_exist, pv_belnr_exist, pv_gjahr_exist.
+
+* Construir TDNAME del documento actual (para excluirlo de la búsqueda)
+  CONCATENATE pv_bukrs pv_belnr pv_gjahr INTO lv_tdname_actual.
+  CONDENSE lv_tdname_actual NO-GAPS.
+
+* Buscar UUID en la caché (HASHED TABLE = búsqueda instantánea O(1))
+  READ TABLE gt_uuid_cache INTO ls_cache
+    WITH TABLE KEY uuid = pv_uuid.
+
+  IF sy-subrc = 0.
+*   UUID encontrado en caché: verificar que NO sea el documento actual
+    IF ls_cache-tdname <> lv_tdname_actual.
+*     UUID existe en OTRO documento
+      pv_existe      = 'X'.
+      pv_bukrs_exist = ls_cache-bukrs.
+      pv_belnr_exist = ls_cache-belnr.
+      pv_gjahr_exist = ls_cache-gjahr.
+    ENDIF.
+  ENDIF.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
 *& Form FRM_SALVAR_UUID
 *&---------------------------------------------------------------------*
 FORM frm_salvar_uuid
@@ -61,7 +105,8 @@ FORM frm_salvar_uuid
   DATA: lt_lines  TYPE TABLE OF tline WITH HEADER LINE,
         lv_header TYPE thead,
         lv_ok     TYPE c,
-        lv_dummy  TYPE char36.
+        lv_dummy  TYPE char36,
+        ls_cache  TYPE gty_uuid_cache.
 
   CLEAR pv_error.
   lt_lines-tdformat = '*'.
@@ -89,6 +134,21 @@ FORM frm_salvar_uuid
       USING pv_bukrs pv_belnr pv_gjahr pv_uuid
       CHANGING lv_ok lv_dummy.
     IF lv_ok <> gc_stat_same. pv_error = 'X'. ENDIF.
+
+*   ═══════════════════════════════════════════════════════════════
+*   ACTUALIZAR CACHÉ: Añadir el nuevo UUID a la caché en memoria
+*   ═══════════════════════════════════════════════════════════════
+    IF pv_error = ''.
+      CLEAR ls_cache.
+      ls_cache-uuid   = pv_uuid.
+      ls_cache-bukrs  = pv_bukrs.
+      ls_cache-belnr  = pv_belnr.
+      ls_cache-gjahr  = pv_gjahr.
+      CONCATENATE pv_bukrs pv_belnr pv_gjahr INTO ls_cache-tdname.
+      CONDENSE ls_cache-tdname NO-GAPS.
+      INSERT ls_cache INTO TABLE gt_uuid_cache.
+    ENDIF.
+
   ELSE.
     pv_error = 'X'.
   ENDIF.
@@ -157,11 +217,15 @@ FORM frm_actualizar_factura_uuid
   gs_log-test_mode = p_test.
 
   DATA: lv_status TYPE c,
-        lv_uuid_previo TYPE char36.
+        lv_uuid_previo TYPE char36,
+        lv_uuid_existe TYPE c,
+        lv_bukrs_exist TYPE bukrs,
+        lv_belnr_exist TYPE belnr_d,
+        lv_gjahr_exist TYPE gjahr.
 
   IF p_test = ''.
 *   ---- MODO PRODUCTIVO: Grabar UUID ----
-    " 1. Comprobar si el documento ya tiene un UUID
+    " 1. Comprobar si el documento actual ya tiene un UUID
     PERFORM frm_existe_uuid
       USING pv_bukrs pv_belnr pv_gjahr ps_datos-uuid
       CHANGING lv_status lv_uuid_previo.
@@ -175,23 +239,37 @@ FORM frm_actualizar_factura_uuid
       gs_log-uuid_previo = lv_uuid_previo.
       gv_ok = gv_ok + 1.
     ELSE.
-      " No tiene UUID, intentamos grabarlo
-      PERFORM frm_salvar_uuid
-        USING pv_bukrs pv_belnr pv_gjahr ps_datos-uuid
-        CHANGING lv_error.
+      " 2. CONTROL QUIRÚRGICO: Verificar que el UUID NO exista en NINGÚN otro documento
+      PERFORM frm_uuid_existe_en_bd
+        USING ps_datos-uuid pv_bukrs pv_belnr pv_gjahr
+        CHANGING lv_uuid_existe lv_bukrs_exist lv_belnr_exist lv_gjahr_exist.
 
-      IF lv_error = ''.
-*       Grabación exitosa
-        gs_log-icon    = gc_icon_ok.
-        CONCATENATE 'UUID actualizado correctamente:' pv_bukrs pv_belnr pv_gjahr
-          INTO gs_log-mensaje SEPARATED BY space.
-        gv_ok = gv_ok + 1.
-      ELSE.
-*       Error en la grabación
+      IF lv_uuid_existe = 'X'.
+*       UUID ya existe en otro documento → ERROR CRÍTICO
         gs_log-icon    = gc_icon_err.
-        CONCATENATE 'Error actualizando UUID en documento:' pv_bukrs pv_belnr pv_gjahr
+        CONCATENATE 'UUID ya existe en otro documento:' lv_bukrs_exist lv_belnr_exist lv_gjahr_exist
+          '(No se graba para evitar duplicado)'
           INTO gs_log-mensaje SEPARATED BY space.
         gv_error = gv_error + 1.
+      ELSE.
+*       UUID no existe en la BD → Proceder a grabar
+        PERFORM frm_salvar_uuid
+          USING pv_bukrs pv_belnr pv_gjahr ps_datos-uuid
+          CHANGING lv_error.
+
+        IF lv_error = ''.
+*         Grabación exitosa
+          gs_log-icon    = gc_icon_ok.
+          CONCATENATE 'UUID actualizado correctamente:' pv_bukrs pv_belnr pv_gjahr
+            INTO gs_log-mensaje SEPARATED BY space.
+          gv_ok = gv_ok + 1.
+        ELSE.
+*         Error en la grabación
+          gs_log-icon    = gc_icon_err.
+          CONCATENATE 'Error actualizando UUID en documento:' pv_bukrs pv_belnr pv_gjahr
+            INTO gs_log-mensaje SEPARATED BY space.
+          gv_error = gv_error + 1.
+        ENDIF.
       ENDIF.
     ENDIF.
 
