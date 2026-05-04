@@ -54,7 +54,7 @@ FORM frm_reprocesar_errores.
       " regla antigua de UUIDs interco, etc.), confiamos en ese enlace y actualizamos directamente.
       PERFORM frm_actualizar_factura_uuid USING ls_csv_data ls_log_db-bukrs ls_log_db-belnr ls_log_db-gjahr.
       lv_success = abap_true.
-    
+
     ELSE.
       " Prioridad 2: Buscar por Folio (XBLNR) solo si no tenemos el documento
       IF ls_log_db-tipo_fac = gc_tipo_interco. " Intercompany explícito
@@ -96,7 +96,7 @@ FORM frm_reprocesar_errores.
             FROM bkpf INTO TABLE lt_bkpf
             WHERE xblnr = ls_log_db-folio.
         ENDIF.
-          
+
         IF sy-subrc = 0.
           LOOP AT lt_bkpf INTO ls_bkpf.
             IF ls_log_db-tipo_fac = gc_tipo_compra.

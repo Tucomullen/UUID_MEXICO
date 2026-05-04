@@ -100,16 +100,6 @@ TYPES: BEGIN OF gty_resumen_fich,
          error    TYPE i,               " Con error
        END OF gty_resumen_fich.
 
-* Estructura para caché de UUIDs existentes (optimización de rendimiento)
-TYPES: BEGIN OF gty_uuid_cache,
-         uuid   TYPE char36,
-         bukrs  TYPE bukrs,
-         belnr  TYPE belnr_d,
-         gjahr  TYPE gjahr,
-         tdname TYPE tdobname,
-       END OF gty_uuid_cache.
-       END OF gty_resumen_fich.
-
 * Estructura para listado de ficheros del servidor (modo AL11)
 TYPES: BEGIN OF gty_server_file,
          fullpath TYPE string,           " Ruta completa del fichero
@@ -144,17 +134,14 @@ TYPES: BEGIN OF gty_kna1_cache,
 DATA: gt_kna1_cache TYPE HASHED TABLE OF gty_kna1_cache
                     WITH UNIQUE KEY stcd1.
 
+* Control anti-duplicidad de UUID en operaciones Intercompany:
+* Registra los tdnames (bukrs+belnr+gjahr) a los que se ha grabado cada UUID
+* en la ejecución actual. Impide que el mismo UUID se asigne a 2 docs distintos.
+DATA: gt_uuid_escrito TYPE HASHED TABLE OF tdobname WITH UNIQUE KEY table_line.
+
 * Tabla interna con registros del CSV
 DATA: gt_csv_data TYPE TABLE OF gty_csv_data,
       gs_csv_data TYPE gty_csv_data.
-
-* Estructura y tabla para facturas con UUID repetido
-TYPES: BEGIN OF gty_factura_repetida,
-         bukrs TYPE bukrs,
-         belnr TYPE belnr_d,
-       END OF gty_factura_repetida.
-DATA: gt_facturas_repetidas TYPE HASHED TABLE OF gty_factura_repetida
-                            WITH UNIQUE KEY bukrs belnr.
 
 * Tabla de log para ALV (ejecución fichero actual)
 DATA: gt_log TYPE TABLE OF gty_log,
@@ -170,10 +157,6 @@ DATA: gt_resumen_fich TYPE TABLE OF gty_resumen_fich,
 * Lista de ficheros CSV encontrados en servidor (modo AL11)
 DATA: gt_server_files TYPE TABLE OF gty_server_file,
       gs_server_file  TYPE gty_server_file.
-
-* Caché de UUIDs existentes en BD (optimización de rendimiento)
-DATA: gt_uuid_cache TYPE HASHED TABLE OF gty_uuid_cache
-                    WITH UNIQUE KEY uuid.
 
 * Fichero en proceso actualmente
 DATA: gv_fichero_actual TYPE string.
@@ -221,7 +204,6 @@ SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE text-b01.
   SELECTION-SCREEN SKIP 1.
   PARAMETERS: p_test AS CHECKBOX DEFAULT 'X'.               " Modo simulación
   PARAMETERS: p_reproc AS CHECKBOX DEFAULT ' '.             " Reprocesar errores/warnings
-  PARAMETERS: p_repet  AS CHECKBOX DEFAULT ' '.             " Solo reprocesar repetidos
 SELECTION-SCREEN END OF BLOCK b1.
 
 SELECTION-SCREEN BEGIN OF BLOCK b2 WITH FRAME TITLE text-b02.

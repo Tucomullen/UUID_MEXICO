@@ -51,49 +51,10 @@ FORM frm_tipo_factura
 * Determinar tipo de factura según qué RFC pertenece al grupo
   IF lv_emisor_grupo_mx = 'X' AND lv_receptor_grupo_mx = 'X'.
 *   ---- INTERCOMPANY ----
-*   Ambos son sociedades Acciona MX.
-*   Determinar el lado a procesar según el RFC del archivo.
-    DATA: lv_filename TYPE string,
-          lt_parts    TYPE TABLE OF string,
-          lv_rfc_owner TYPE char13,
-          lv_lines    TYPE i.
-
-    lv_filename = gv_fichero_actual.
-    IF lv_filename CS '\'.
-      SPLIT lv_filename AT '\' INTO TABLE lt_parts.
-      lv_lines = lines( lt_parts ).
-      READ TABLE lt_parts INTO lv_filename INDEX lv_lines.
-    ELSEIF lv_filename CS '/'.
-      SPLIT lv_filename AT '/' INTO TABLE lt_parts.
-      lv_lines = lines( lt_parts ).
-      READ TABLE lt_parts INTO lv_filename INDEX lv_lines.
-    ENDIF.
-    SPLIT lv_filename AT '_' INTO lv_rfc_owner lv_filename.
-
-    IF ps_datos-rfc_emisor = lv_rfc_owner.
-      " El dueño es el Emisor -> Procesar como Venta
-      pv_tipo_factura = gc_tipo_venta.
-      pv_emisor       = lv_bukrs_emisor.
-      CONCATENATE 'C-' lv_bukrs_receptor INTO pv_receptor.
-    ELSEIF ps_datos-rfc_receptor = lv_rfc_owner.
-      " El dueño es el Receptor -> Procesar como Compra
-      pv_tipo_factura = gc_tipo_compra.
-      pv_receptor     = lv_bukrs_receptor.
-      CONCATENATE 'V-' lv_bukrs_emisor INTO pv_emisor.
-    ELSE.
-      " Caso anómalo: ningún RFC es dueño del archivo
-      pv_error = 'X'.
-      CLEAR gs_log.
-      gs_log-icon         = gc_icon_err.
-      gs_log-rfc_emisor   = ps_datos-rfc_emisor.
-      gs_log-rfc_receptor = ps_datos-rfc_receptor.
-      gs_log-folio        = ps_datos-folio.
-      gs_log-tipo         = ps_datos-tipocomprobante.
-      gs_log-uuid         = ps_datos-uuid.
-      gs_log-mensaje      = 'Intercompany: El RFC del archivo no coincide con Emisor ni Receptor'.
-      APPEND gs_log TO gt_log.
-      RETURN.
-    ENDIF.
+*   Ambos son sociedades Acciona MX
+    pv_tipo_factura = gc_tipo_interco.
+    pv_emisor   = lv_bukrs_emisor.
+    pv_receptor = lv_bukrs_receptor.
 
   ELSEIF lv_emisor_grupo_mx = '' AND lv_receptor_grupo_mx = 'X'.
 *   ---- COMPRA ----
@@ -330,8 +291,41 @@ FORM frm_procesar_intercompany
     CHANGING lv_belnr_v lv_error_v lv_error_uuid_v.
 
   IF lv_error_v = '' AND lv_error_uuid_v = ''.
-    PERFORM frm_actualizar_factura_uuid
-      USING ps_datos pv_bukrs_emi lv_belnr_v pv_gjahr.
+*   Comprobar si este UUID ya fue grabado en el lado Compra de esta ejecución.
+*   Premisa: 1 UUID único por documento contable. Si ya se grabó en otro doc
+*   (el de Compra), omitir el lado Venta para evitar duplicar el UUID en STXH.
+    DATA: lv_key_venta TYPE tdobname.
+    CONCATENATE ps_datos-uuid ':' pv_bukrs_emi lv_belnr_v pv_gjahr
+      INTO lv_key_venta.
+    CONDENSE lv_key_venta NO-GAPS.
+
+    DATA: lv_key_compra TYPE tdobname.
+    CONCATENATE ps_datos-uuid ':' pv_bukrs_rec lv_belnr_c pv_gjahr
+      INTO lv_key_compra.
+    CONDENSE lv_key_compra NO-GAPS.
+
+    IF lv_belnr_c IS NOT INITIAL
+   AND line_exists( gt_uuid_escrito[ table_line = lv_key_compra ] ).
+*     UUID ya asignado al lado Compra en esta ejecución → omitir Venta
+      CLEAR gs_log.
+      gs_log-icon         = gc_icon_warn.
+      gs_log-bukrs        = pv_bukrs_emi.
+      gs_log-belnr        = lv_belnr_v.
+      gs_log-gjahr        = pv_gjahr.
+      gs_log-rfc_emisor   = ps_datos-rfc_emisor.
+      gs_log-rfc_receptor = ps_datos-rfc_receptor.
+      gs_log-folio        = ps_datos-folio.
+      gs_log-tipo         = ps_datos-tipocomprobante.
+      gs_log-tipo_fac     = gc_tipo_interco.
+      gs_log-uuid         = ps_datos-uuid.
+      gs_log-test_mode    = p_test.
+      gs_log-mensaje = '[INTERCO] Lado Venta omitido: UUID ya grabado en lado Compra (evitar duplicidad en STXH).'.
+      APPEND gs_log TO gt_log.
+      gv_warning = gv_warning + 1.
+    ELSE.
+      PERFORM frm_actualizar_factura_uuid
+        USING ps_datos pv_bukrs_emi lv_belnr_v pv_gjahr.
+    ENDIF.
   ENDIF.
 
 * ---- Gestión de logs intercompany ----
@@ -530,18 +524,7 @@ FORM frm_obtener_factura_compra
   ELSEIF lv_registros = 1.
 *   Documento único encontrado -> verificar UUID existente
     READ TABLE lt_belnr_match INTO pv_belnr INDEX 1.
-    READ TABLE lt_bkpf INTO ls_bkpf WITH KEY belnr = pv_belnr.
 
-*   --- FILTRO DE REPETIDOS ---
-    IF p_repet = 'X'.
-      READ TABLE gt_facturas_repetidas TRANSPORTING NO FIELDS
-        WITH TABLE KEY bukrs = pv_bukrs belnr = pv_belnr.
-      IF sy-subrc <> 0.
-        " Si no está en la tabla de repetidos, saltar silenciosamente
-        pv_error = 'X'.
-        RETURN.
-      ENDIF.
-    ENDIF.
 
     DATA: lv_status TYPE c.
     PERFORM frm_existe_uuid
@@ -587,10 +570,6 @@ FORM frm_obtener_factura_compra
       gs_log-tipo_fac     = gc_tipo_compra.
       gs_log-uuid         = ps_datos-uuid.
       gs_log-mensaje      = 'El documento ya cuenta con el mismo UUID.'.
-      gs_log-budat        = ls_bkpf-budat.
-      gs_log-bldat        = ls_bkpf-bldat.
-      gs_log-blart        = ls_bkpf-blart.
-      gs_log-monat        = ls_bkpf-budat+4(2).
       gs_log-test_mode    = p_test.
       APPEND gs_log TO gt_log.
       gv_ok = gv_ok + 1.
@@ -809,18 +788,6 @@ FORM frm_obtener_factura_venta
 
   ELSEIF lv_registros = 1.
     READ TABLE lt_belnr_match INTO pv_belnr INDEX 1.
-    READ TABLE lt_bkpf INTO ls_bkpf WITH KEY belnr = pv_belnr.
-
-*   --- FILTRO DE REPETIDOS ---
-    IF p_repet = 'X'.
-      READ TABLE gt_facturas_repetidas TRANSPORTING NO FIELDS
-        WITH TABLE KEY bukrs = pv_bukrs belnr = pv_belnr.
-      IF sy-subrc <> 0.
-        " Si no está en la tabla de repetidos, saltar silenciosamente
-        pv_error = 'X'.
-        RETURN.
-      ENDIF.
-    ENDIF.
 
     DATA: lv_status TYPE c.
     PERFORM frm_existe_uuid
@@ -866,10 +833,6 @@ FORM frm_obtener_factura_venta
       gs_log-tipo_fac     = gc_tipo_venta.
       gs_log-uuid         = ps_datos-uuid.
       gs_log-mensaje      = 'El documento ya cuenta con el mismo UUID.'.
-      gs_log-budat        = ls_bkpf-budat.
-      gs_log-bldat        = ls_bkpf-bldat.
-      gs_log-blart        = ls_bkpf-blart.
-      gs_log-monat        = ls_bkpf-budat+4(2).
       gs_log-test_mode    = p_test.
       APPEND gs_log TO gt_log.
       gv_ok = gv_ok + 1.
